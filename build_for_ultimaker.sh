@@ -63,6 +63,11 @@ u-boot_build() {
 	mkdir -p "${DEB_DIR}/boot"
 	cp ${UBOOT_BUILD}/u-boot-sunxi-with-spl.bin "${DEB_DIR}/boot/"
 
+	# Add splashimage
+	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${UBOOT_BUILD}/umsplash.bmp"
+	gzip -9 -f "${UBOOT_BUILD}/umsplash.bmp"
+	cp "${UBOOT_BUILD}/umsplash.bmp.gz" "${DEB_DIR}/boot/"
+
 	# Prepare the u-boot environment
 	for env in $(find env/ -name '*.env' -exec basename {} \;); do
 		echo "Building environment for ${env%.env}"
