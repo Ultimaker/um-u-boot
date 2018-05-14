@@ -1,7 +1,7 @@
 pipeline {
   agent {
     node {
-      label 'slave-debian-stretch-def079b0'
+      label 'embedded-docker'
     }
     
   }
