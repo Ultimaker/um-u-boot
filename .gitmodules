@@ -1,3 +1,3 @@
 [submodule "u-boot"]
 	path = u-boot
-	url = https://github.com/Ultimaker/u-boot.git
+	url = ../u-boot
