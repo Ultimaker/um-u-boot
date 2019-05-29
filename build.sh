@@ -42,10 +42,6 @@ BUILDCONFIG="opinicus"
 UCONFIG="${CWD}/configs/${BUILDCONFIG}_config"
 UBOOT_BUILD_DIR="${CWD}/_build_armhf/${BUILDCONFIG}-u-boot"
 
-# Initialize repositories
-git submodule init
-git submodule update
-
 u-boot_build() {
 	#Check if the release version number is set, if not, we are building a dev version.
 	RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
