@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2044
 
 # This scripts builds the bootloader for the A20 linux system that we use.
 
@@ -6,39 +7,40 @@
 # using arm-none-eabi-gcc, so we need to ensure it exists. Because printenv and
 # which can cause bash -e to exit, so run this before setting this up.
 if [ "${CROSS_COMPILE}" == "" ]; then
-	if [ "$(which arm-none-eabi-gcc)" != "" ]; then
-		CROSS_COMPILE="arm-none-eabi-"
-	fi
-	if [ "$(which arm-linux-gnueabihf-gcc)" != "" ]; then
-		CROSS_COMPILE="arm-linux-gnueabihf-"
-	fi
-	if [ "${CROSS_COMPILE}" == "" ]; then
-		echo "No suiteable cross-compiler found."
-		echo "One can be set explicitly via the environment variable CROSS_COMPILE='arm-linux-gnueabihf-' for example."
-		exit 1
-	fi
+    if [ "$(command -v arm-none-eabi-gcc)" != "" ]; then
+        CROSS_COMPILE="arm-none-eabi-"
+    fi
+    if [ "$(command -v arm-linux-gnueabihf-gcc)" != "" ]; then
+        CROSS_COMPILE="arm-linux-gnueabihf-"
+    fi
+    if [ "${CROSS_COMPILE}" == "" ]; then
+        echo "No suiteable cross-compiler found."
+        echo "One can be set explicitly via the environment variable CROSS_COMPILE='arm-linux-gnueabihf-' for example."
+        exit 1
+    fi
 fi
-export CROSS_COMPILE=${CROSS_COMPILE}
+export CROSS_COMPILE="${CROSS_COMPILE}"
 
 if [ "${MAKEFLAGS}" == "" ]; then
-	echo -e -n "\e[1m"
-	echo "Makeflags not set, hint, to speed up compilation time, increase the number of jobs. For example:"
-	echo "MAKEFLAGS='-j 4' ${0}"
-	echo -e "\e[0m"
+    echo -e -n "\e[1m"
+    echo "Makeflags not set, hint, to speed up compilation time, increase the number of jobs. For example:"
+    echo "MAKEFLAGS='-j 4' ${0}"
+    echo -e "\e[0m"
 fi
 
-set -e
-set -u
+set -eu
+
+CWD="$(pwd)"
 
 # Which bootloader to build.
-UBOOT=`pwd`/u-boot/
+UBOOT="${CWD}/u-boot/"
 
 # Which bootloader config to build.
 BUILDCONFIG="opinicus"
 
 # Setup internal variables.
-UCONFIG=`pwd`/configs/${BUILDCONFIG}_config
-UBOOT_BUILD=`pwd`/_build_armhf/${BUILDCONFIG}-u-boot
+UCONFIG="${CWD}/configs/${BUILDCONFIG}_config"
+UBOOT_BUILD_DIR="${CWD}/_build_armhf/${BUILDCONFIG}-u-boot"
 
 # Initialize repositories
 git submodule init
@@ -49,34 +51,34 @@ u-boot_build() {
 	RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
 
 	# Prepare the build environment
-	mkdir -p ${UBOOT_BUILD}
-	pushd ${UBOOT}
+	mkdir -p "${UBOOT_BUILD_DIR}"
+	pushd "${UBOOT}"
 
 	# Build the u-boot image file
-	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make O=${UBOOT_BUILD} KCONFIG_CONFIG=${UCONFIG}
+	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "KCONFIG_CONFIG=${UCONFIG}"
 	popd
 
 	# Build the debian package data
-	DEB_DIR=`pwd`/debian
+	DEB_DIR="$(pwd)/debian"
 
-	rm -r ${DEB_DIR} 2> /dev/null || true
+	rm -r "${DEB_DIR}" 2> /dev/null || true
 	mkdir -p "${DEB_DIR}/boot"
-	cp ${UBOOT_BUILD}/u-boot-sunxi-with-spl.bin "${DEB_DIR}/boot/"
+	cp "${UBOOT_BUILD_DIR}/u-boot-sunxi-with-spl.bin" "${DEB_DIR}/boot/"
 
 	# Add splashimage
-	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${UBOOT_BUILD}/umsplash.bmp"
-	gzip -9 -f "${UBOOT_BUILD}/umsplash.bmp"
-	cp "${UBOOT_BUILD}/umsplash.bmp.gz" "${DEB_DIR}/boot/"
+	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${UBOOT_BUILD_DIR}/umsplash.bmp"
+	gzip -9 -f "${UBOOT_BUILD_DIR}/umsplash.bmp"
+	cp "${UBOOT_BUILD_DIR}/umsplash.bmp.gz" "${DEB_DIR}/boot/"
 
 	# Prepare the u-boot environment
 	for env in $(find env/ -name '*.env' -exec basename {} \;); do
 		echo "Building environment for ${env%.env}"
-		mkenvimage -s 131072 -p 0x00 -o ${UBOOT_BUILD}/${env}.bin env/${env}
-		chmod a+r ${UBOOT_BUILD}/${env}.bin
-		cp env/${env} ${UBOOT_BUILD}/${env}.bin "${DEB_DIR}/boot/"
+		mkenvimage -s 131072 -p 0x00 -o "${UBOOT_BUILD_DIR}/${env}.bin" "env/${env}"
+		chmod a+r "${UBOOT_BUILD_DIR}/${env}.bin"
+		cp "env/${env}" "${UBOOT_BUILD_DIR}/${env}.bin" "${DEB_DIR}/boot/"
 	done
 
-	mkdir -p ${DEB_DIR}/DEBIAN
+	mkdir -p "${DEB_DIR}/DEBIAN"
 	cat > debian/DEBIAN/control <<-EOT
 		Package: um-u-boot
 		Conflicts: u-boot-sunxi
@@ -91,12 +93,12 @@ u-boot_build() {
 	EOT
 
 	# Build the debian package
-	fakeroot dpkg-deb --build "${DEB_DIR}" um-u-boot-${RELEASE_VERSION}.deb
+	fakeroot dpkg-deb --build "${DEB_DIR}" "um-u-boot-${RELEASE_VERSION}.deb"
 }
 
 if [ ${#} -gt 0 ]; then
-	pushd ${UBOOT}
-	ARCH=arm make O=${UBOOT_BUILD} KCONFIG_CONFIG=${UCONFIG} "${@}"
+	pushd "${UBOOT}"
+	ARCH=arm make "O=${UBOOT_BUILD_DIR}" "KCONFIG_CONFIG=${UCONFIG}" "${@}"
 	popd
 else
 	u-boot_build
