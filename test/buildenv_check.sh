@@ -7,32 +7,14 @@ TEST_DIR=$(mktemp -d)
 CROSS_COMPILE="${CROSS_COMPILE:-""}"
 
 COMMANDS=" \
-    basename \
-    bc \
-    convert \
-    cpp \
-    cut \
-    dtc \
-    envsubst \
-    fakeroot \
-    gcc \
-    gettext \
-    grep \
-    kmod \
-    lzop \
-    make \
-    mkimage \
-    mktemp \
-    openssl \
-    sed \
-    tar \
-    wget \
-    xz \
+convert \
+fakeroot \
+gzip \
+make \
+mkenvimage \
 "
 
 LIBRARIES=" \
-    libssl \
-    libncurses \
 "
 
 result=0
@@ -116,6 +98,7 @@ if [ "${result}" -ne 0 ]; then
     exit 1
 fi
 
+echo_line
 echo "Build environment OK"
 echo_line
 
