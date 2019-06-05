@@ -1,5 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2044
+# shellcheck disable=SC1117
 
 # This scripts builds the bootloader for the A20 linux system that we use.
 
