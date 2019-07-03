@@ -8,7 +8,7 @@ RUN apt-get update && \
         device-tree-compiler \
         fakeroot \
         gcc \
-        gcc-arm-none-eabi \
+        gcc-arm-linux-gnueabihf \
         imagemagick \
         make \
         ncurses-dev \
