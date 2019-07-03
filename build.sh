@@ -37,10 +37,11 @@ CWD="$(pwd)"
 UBOOT="${CWD}/u-boot/"
 
 # Which bootloader config to build.
-BUILDCONFIG="opinicus"
+BUILDCONFIG="msc_sm2_imx6_sd"
 
 # Setup internal variables.
-UCONFIG="${CWD}/configs/${BUILDCONFIG}_config"
+SD_CONFIG="msc_sm2_imx6_sd_defconfig"
+UCONFIG="${CWD}/configs/${BUILDCONFIG}_defconfig"
 UBOOT_BUILD_DIR="${CWD}/_build_armhf/${BUILDCONFIG}-u-boot"
 
 u-boot_build()
@@ -52,9 +53,11 @@ u-boot_build()
 	mkdir -p "${UBOOT_BUILD_DIR}"
 	cd "${UBOOT}"
 
+#    ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" mrproper
 
 	# Build the u-boot image file
-	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "KCONFIG_CONFIG=${UCONFIG}"
+	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "${SD_CONFIG}" all
+#	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "KCONFIG_CONFIG=${UCONFIG}"
 	cd "${CWD}"
 
 	# Build the debian package data
@@ -62,37 +65,38 @@ u-boot_build()
 
 	rm -r "${DEB_DIR}" 2> /dev/null || true
 	mkdir -p "${DEB_DIR}/boot"
-	cp "${UBOOT_BUILD_DIR}/u-boot-sunxi-with-spl.bin" "${DEB_DIR}/boot/"
+    cp "${UBOOT_BUILD_DIR}/u-boot.bin" "${DEB_DIR}/boot/u-boot-sd.bin"
+    cp "${UBOOT_BUILD_DIR}/SPL" "${DEB_DIR}/boot/spl_sd.img"
 
 	# Add splashimage
 	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${UBOOT_BUILD_DIR}/umsplash.bmp"
 	gzip -9 -f "${UBOOT_BUILD_DIR}/umsplash.bmp"
 	cp "${UBOOT_BUILD_DIR}/umsplash.bmp.gz" "${DEB_DIR}/boot/"
 
-	# Prepare the u-boot environment
-	for env in $(find env/ -name '*.env' -exec basename {} \;); do
-		echo "Building environment for ${env%.env}"
-		mkenvimage -s 131072 -p 0x00 -o "${UBOOT_BUILD_DIR}/${env}.bin" "env/${env}"
-		chmod a+r "${UBOOT_BUILD_DIR}/${env}.bin"
-		cp "env/${env}" "${UBOOT_BUILD_DIR}/${env}.bin" "${DEB_DIR}/boot/"
-	done
+    # Prepare the u-boot environment
+#    for env in $(find env/ -name '*.env' -exec basename {} \;); do
+#        echo "Building environment for ${env%.env}"
+#        mkenvimage -s 131072 -p 0x00 -o "${UBOOT_BUILD_DIR}/${env}.bin" "env/${env}"
+#        chmod a+r "${UBOOT_BUILD_DIR}/${env}.bin"
+#        cp "env/${env}" "${UBOOT_BUILD_DIR}/${env}.bin" "${DEB_DIR}/boot/"
+#    done
 
-	mkdir -p "${DEB_DIR}/DEBIAN"
-	cat > debian/DEBIAN/control <<-EOT
-		Package: um-u-boot
-		Conflicts: u-boot-sunxi
-		Replaces: u-boot-sunxi
-		Version: ${RELEASE_VERSION}
-		Architecture: armhf
-		Maintainer: Anonymous <software-embedded-platform@ultimaker.com>
-		Section: admin
-		Priority: optional
-		Homepage: http://www.denx.de/wiki/U-Boot/
-		Description: u-boot image with spl for the Olimex OLinuXino Lime2 eMMC.
-	EOT
+    mkdir -p "${DEB_DIR}/DEBIAN"
+    cat > debian/DEBIAN/control <<-EOT
+        Package: um-u-boot
+        Conflicts: u-boot-sunxi
+        Replaces: u-boot-sunxi
+        Version: ${RELEASE_VERSION}
+        Architecture: armhf
+        Maintainer: Anonymous <software-embedded-platform@ultimaker.com>
+        Section: admin
+        Priority: optional
+        Homepage: http://www.denx.de/wiki/U-Boot/
+        Description: U-Boot package with SPI-NOR/SD U-boot and SPL binary for the MSC IMX.6.
+    EOT
 
-	# Build the debian package
-	fakeroot dpkg-deb --build "${DEB_DIR}" "um-u-boot-${RELEASE_VERSION}.deb"
+    # Build the debian package
+    fakeroot dpkg-deb --build "${DEB_DIR}" "um-u-boot-${RELEASE_VERSION}.deb"
 }
 
 if [ ${#} -gt 0 ]; then
