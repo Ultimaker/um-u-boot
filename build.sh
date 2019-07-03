@@ -37,10 +37,11 @@ CWD="$(pwd)"
 UBOOT="${CWD}/u-boot/"
 
 # Which bootloader config to build.
-BUILDCONFIG="msc_sm2_imx6_sd"
+BUILDCONFIG="msc_sm2_imx6"
 
 # Setup internal variables.
 SD_CONFIG="msc_sm2_imx6_sd_defconfig"
+SPI_CONFIG="msc_sm2_imx6_spi_defconfig"
 UCONFIG="${CWD}/configs/${BUILDCONFIG}_defconfig"
 UBOOT_BUILD_DIR="${CWD}/_build_armhf/${BUILDCONFIG}-u-boot"
 
@@ -49,24 +50,31 @@ u-boot_build()
 	#Check if the release version number is set, if not, we are building a dev version.
 	RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
 
+    # Create Debian package data directory
+	DEB_DIR="${CWD}/debian"
+
+	rm -r "${DEB_DIR}" 2> /dev/null || true
+	mkdir -p "${DEB_DIR}/boot"
+
 	# Prepare the build environment
 	mkdir -p "${UBOOT_BUILD_DIR}"
 	cd "${UBOOT}"
 
 #    ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" mrproper
 
-	# Build the u-boot image file
+	# Build the u-boot image files
 	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "${SD_CONFIG}" all
 #	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "KCONFIG_CONFIG=${UCONFIG}"
-	cd "${CWD}"
 
-	# Build the debian package data
-	DEB_DIR="${CWD}/debian"
-
-	rm -r "${DEB_DIR}" 2> /dev/null || true
-	mkdir -p "${DEB_DIR}/boot"
     cp "${UBOOT_BUILD_DIR}/u-boot.bin" "${DEB_DIR}/boot/u-boot-sd.bin"
     cp "${UBOOT_BUILD_DIR}/SPL" "${DEB_DIR}/boot/spl_sd.img"
+
+	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "${SPI_CONFIG}" all
+
+    cp "${UBOOT_BUILD_DIR}/u-boot.bin" "${DEB_DIR}/boot/u-boot-spi.bin"
+    cp "${UBOOT_BUILD_DIR}/SPL" "${DEB_DIR}/boot/spl_spi.img"
+
+    cd "${CWD}"
 
 	# Add splashimage
 	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${UBOOT_BUILD_DIR}/umsplash.bmp"
@@ -82,18 +90,19 @@ u-boot_build()
 #    done
 
     mkdir -p "${DEB_DIR}/DEBIAN"
-    cat > debian/DEBIAN/control <<-EOT
-        Package: um-u-boot
-        Conflicts: u-boot-sunxi
-        Replaces: u-boot-sunxi
-        Version: ${RELEASE_VERSION}
-        Architecture: armhf
-        Maintainer: Anonymous <software-embedded-platform@ultimaker.com>
-        Section: admin
-        Priority: optional
-        Homepage: http://www.denx.de/wiki/U-Boot/
-        Description: U-Boot package with SPI-NOR/SD U-boot and SPL binary for the MSC IMX.6.
-    EOT
+    cat > debian/DEBIAN/control <<-\
+________________________________________________________________________________________________
+Package: um-u-boot
+Conflicts: u-boot-sunxi
+Replaces: u-boot-sunxi
+Version: ${RELEASE_VERSION}
+Architecture: armhf
+Maintainer: Anonymous <software-embedded-platform@ultimaker.com>
+Section: admin
+Priority: optional
+Homepage: http://www.denx.de/wiki/U-Boot/
+Description: U-Boot package with SPI-NOR/SD U-boot and SPL binary for the MSC IMX.6.
+________________________________________________________________________________________________
 
     # Build the debian package
     fakeroot dpkg-deb --build "${DEB_DIR}" "um-u-boot-${RELEASE_VERSION}.deb"
