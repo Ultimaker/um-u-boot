@@ -43,20 +43,22 @@ BUILDCONFIG="opinicus"
 UCONFIG="${CWD}/configs/${BUILDCONFIG}_config"
 UBOOT_BUILD_DIR="${CWD}/_build_armhf/${BUILDCONFIG}-u-boot"
 
-u-boot_build() {
+u-boot_build()
+{
 	#Check if the release version number is set, if not, we are building a dev version.
 	RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
 
 	# Prepare the build environment
 	mkdir -p "${UBOOT_BUILD_DIR}"
-	pushd "${UBOOT}"
+	cd "${UBOOT}"
+
 
 	# Build the u-boot image file
 	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "KCONFIG_CONFIG=${UCONFIG}"
-	popd
+	cd "${CWD}"
 
 	# Build the debian package data
-	DEB_DIR="$(pwd)/debian"
+	DEB_DIR="${CWD}/debian"
 
 	rm -r "${DEB_DIR}" 2> /dev/null || true
 	mkdir -p "${DEB_DIR}/boot"
@@ -82,7 +84,7 @@ u-boot_build() {
 		Replaces: u-boot-sunxi
 		Version: ${RELEASE_VERSION}
 		Architecture: armhf
-		Maintainer: Anonymous <root@monolith.ultimaker.com>
+		Maintainer: Anonymous <software-embedded-platform@ultimaker.com>
 		Section: admin
 		Priority: optional
 		Homepage: http://www.denx.de/wiki/U-Boot/
