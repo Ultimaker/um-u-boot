@@ -16,9 +16,6 @@ RELEASE_VERSION="${RELEASE_VERSION:-}"
 CROSS_COMPILE="${CROSS_COMPILE:-""}"
 DOCKER_WORK_DIR="${WORKDIR:-/build}"
 
-INITRAMFS_SOURCE="${INITRAMFS_SOURCE:-initramfs/initramfs.lst}"
-DEPMOD="${DEPMOD:-/sbin/depmod}"
-
 run_env_check="yes"
 run_linter="yes"
 run_tests="yes"
@@ -35,6 +32,7 @@ run_in_docker()
 {
     docker run \
         --rm \
+        -it \
         -u "$(id -u)" \
         -v "$(pwd):${DOCKER_WORK_DIR}" \
         -e "ARCH=${ARCH}" \
@@ -56,20 +54,7 @@ run_in_shell()
 
 run_script()
 {
-    if ! command -v docker; then
-        echo "Docker not found, docker-less builds are not supported."
-        echo "Are you sure you want to continue? (y/n)"
-        read -r __sure
-        echo ""
-        if [ "${__sure}" != "y" ]; then
-            exit 1
-        fi
-
-        echo "Attempting native build ..."
-        run_in_shell "${@}"
-    else
-        run_in_docker "${@}"
-    fi
+    run_in_docker "${@}"
 }
 
 env_check()
@@ -80,7 +65,7 @@ env_check()
 run_build()
 {
     git submodule update --init --recursive
-    run_script "./build.sh"
+    run_script "./build.sh" "${@}"
 }
 
 run_tests()
@@ -141,7 +126,7 @@ if [ "${run_linter}" = "yes" ]; then
     run_linter
 fi
 
-run_build
+run_build "${@}"
 
 if [ "${run_tests}" = "yes" ]; then
     run_tests
