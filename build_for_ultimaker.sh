@@ -64,7 +64,7 @@ env_check()
 
 run_build()
 {
-    git submodule update --init --recursive
+#    git submodule update --init --recursive
     run_script "./build.sh" "${@}"
 }
 
