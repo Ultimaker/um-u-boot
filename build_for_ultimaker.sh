@@ -22,10 +22,10 @@ run_tests="yes"
 
 update_docker_image()
 {
-#    if ! docker pull "${CI_REGISTRY_IMAGE}:${CI_REGISTRY_IMAGE_TAG}" 2> /dev/null; then
+    if ! docker pull "${CI_REGISTRY_IMAGE}:${CI_REGISTRY_IMAGE_TAG}" 2> /dev/null; then
         echo "Unable to update docker image '${CI_REGISTRY_IMAGE}:${CI_REGISTRY_IMAGE_TAG}', building locally instead."
         docker build . -t "${CI_REGISTRY_IMAGE}:${CI_REGISTRY_IMAGE_TAG}"
-#    fi
+    fi
 }
 
 run_in_docker()
@@ -64,7 +64,7 @@ env_check()
 
 run_build()
 {
-#    git submodule update --init --recursive
+    git submodule update --init --recursive
     run_script "./build.sh" "${@}"
 }
 
