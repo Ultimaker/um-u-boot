@@ -2,11 +2,21 @@
 # shellcheck disable=SC2044
 # shellcheck disable=SC1117
 
-# This scripts builds the bootloader for the A20 linux system that we use.
+# This scripts builds and packs the bootloaders for the msc-sm2-imx6 linux SOM.
+# It build two variations of the bootloader; one for the SPI-NOR flash and one
+# for running from SD card.
+# This U-Boot variant has a separate SPL and does not have a separate environment.
 
-# Check for a valid cross compiler. When unset, the kernel tries to build itself
-# using arm-none-eabi-gcc, so we need to ensure it exists. Because printenv and
-# which can cause bash -e to exit, so run this before setting this up.
+set -eu
+
+CWD="$(pwd)"
+UBOOT_SRC="${CWD}/u-boot/"
+BUILD_DIR="${CWD}/_build_armhf/"
+BUILDCONFIG="msc_sm2_imx6"
+SUPPORTED_VARIANTS="sd spi"
+RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
+
+
 if [ "${CROSS_COMPILE}" == "" ]; then
     if [ "$(command -v arm-none-eabi-gcc)" != "" ]; then
         CROSS_COMPILE="arm-none-eabi-"
@@ -29,67 +39,15 @@ if [ "${MAKEFLAGS}" == "" ]; then
     echo -e "\e[0m"
 fi
 
-set -eu
-
-CWD="$(pwd)"
-
-# Which bootloader to build.
-UBOOT="${CWD}/u-boot/"
-
-# Which bootloader config to build.
-BUILDCONFIG="msc_sm2_imx6"
-
-# Setup internal variables.
-SD_CONFIG="msc_sm2_imx6_sd_defconfig"
-SPI_CONFIG="msc_sm2_imx6_spi_defconfig"
-UCONFIG="${CWD}/configs/${BUILDCONFIG}_defconfig"
-UBOOT_BUILD_DIR="${CWD}/_build_armhf/${BUILDCONFIG}-u-boot"
-
-u-boot_build()
+package()
 {
-	#Check if the release version number is set, if not, we are building a dev version.
-	RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
-
     # Create Debian package data directory
-	DEB_DIR="${CWD}/debian"
+	deb_dir="${CWD}/debian"
 
-	rm -r "${DEB_DIR}" 2> /dev/null || true
-	mkdir -p "${DEB_DIR}/boot"
+	rm -r "${deb_dir}" 2> /dev/null || true
+	mkdir -p "${deb_dir}/boot"
 
-	# Prepare the build environment
-	mkdir -p "${UBOOT_BUILD_DIR}"
-	cd "${UBOOT}"
-
-#    ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" mrproper
-
-	# Build the u-boot image files
-	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "${SD_CONFIG}" all
-#	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "KCONFIG_CONFIG=${UCONFIG}"
-
-    cp "${UBOOT_BUILD_DIR}/u-boot.bin" "${DEB_DIR}/boot/u-boot-sd.bin"
-    cp "${UBOOT_BUILD_DIR}/SPL" "${DEB_DIR}/boot/spl_sd.img"
-
-	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "${SPI_CONFIG}" all
-
-    cp "${UBOOT_BUILD_DIR}/u-boot.bin" "${DEB_DIR}/boot/u-boot-spi.bin"
-    cp "${UBOOT_BUILD_DIR}/SPL" "${DEB_DIR}/boot/spl_spi.img"
-
-    cd "${CWD}"
-
-	# Add splashimage
-	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${UBOOT_BUILD_DIR}/umsplash.bmp"
-	gzip -9 -f "${UBOOT_BUILD_DIR}/umsplash.bmp"
-	cp "${UBOOT_BUILD_DIR}/umsplash.bmp.gz" "${DEB_DIR}/boot/"
-
-    # Prepare the u-boot environment
-#    for env in $(find env/ -name '*.env' -exec basename {} \;); do
-#        echo "Building environment for ${env%.env}"
-#        mkenvimage -s 131072 -p 0x00 -o "${UBOOT_BUILD_DIR}/${env}.bin" "env/${env}"
-#        chmod a+r "${UBOOT_BUILD_DIR}/${env}.bin"
-#        cp "env/${env}" "${UBOOT_BUILD_DIR}/${env}.bin" "${DEB_DIR}/boot/"
-#    done
-
-    mkdir -p "${DEB_DIR}/DEBIAN"
+    mkdir -p "${deb_dir}/DEBIAN"
     cat > debian/DEBIAN/control <<-\
 ________________________________________________________________________________________________
 Package: um-u-boot
@@ -104,14 +62,57 @@ Homepage: http://www.denx.de/wiki/U-Boot/
 Description: U-Boot package with SPI-NOR/SD U-boot and SPL binary for the MSC IMX.6.
 ________________________________________________________________________________________________
 
+    cp "${BUILD_DIR}/umsplash.bmp.gz" "${deb_dir}/boot/"
+
+    for variant in ${SUPPORTED_VARIANTS}; do
+        cp "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot.img" "${deb_dir}/boot/u-boot.img-${variant}"
+        cp "${BUILD_DIR}/${BUILDCONFIG}_${variant}/SPL" "${deb_dir}/boot/spl.img-${variant}"
+    done
+
     # Build the debian package
-    fakeroot dpkg-deb --build "${DEB_DIR}" "um-u-boot-${RELEASE_VERSION}.deb"
+    fakeroot dpkg-deb --build "${deb_dir}" "um-u-boot-${RELEASE_VERSION}.deb"
+}
+
+add_splash()
+{
+	# Add splashimage
+	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${BUILD_DIR}/umsplash.bmp"
+	gzip -9 -f "${BUILD_DIR}/umsplash.bmp"
+}
+
+# Build the required U-Boot binaries/images.
+# param: variant: can be either sd or spi.
+build_u-boot()
+{
+    variant="${1}"
+    config="${BUILDCONFIG}_${variant}"
+    uconfig="${CWD}/configs/${config}_defconfig"
+    build_dir="${BUILD_DIR}/${config}"
+
+	# Prepare the build environment
+	mkdir -p "${build_dir}"
+	cd "${UBOOT_SRC}"
+
+	# Build the u-boot image files
+	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}" all
+
+    cd "${CWD}"
 }
 
 if [ ${#} -gt 0 ]; then
-	pushd "${UBOOT}"
-	ARCH=arm make "O=${UBOOT_BUILD_DIR}" "KCONFIG_CONFIG=${UCONFIG}" "${@}"
-	popd
+	cd "${UBOOT_SRC}"
+    for variant in ${SUPPORTED_VARIANTS}; do
+        config="${BUILDCONFIG}_${variant}"
+        uconfig="${CWD}/configs/${config}_defconfig"
+        build_dir="${BUILD_DIR}/${config}"
+        ARCH=arm make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}" "${@}"
+	done
+	cd "${CWD}"
 else
-	u-boot_build
+    for variant in ${SUPPORTED_VARIANTS}; do
+	    build_u-boot "${variant}"
+	done
+
+	add_splash
+	package
 fi
