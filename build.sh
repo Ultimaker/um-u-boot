@@ -7,16 +7,6 @@
 # for running from SD card.
 # This U-Boot variant has a separate SPL and does not have a separate environment.
 
-set -eu
-
-CWD="$(pwd)"
-UBOOT_SRC="${CWD}/u-boot/"
-BUILD_DIR="${CWD}/_build_armhf/"
-BUILDCONFIG="msc_sm2_imx6"
-SUPPORTED_VARIANTS="sd spi"
-RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
-
-
 if [ "${CROSS_COMPILE}" == "" ]; then
     if [ "$(command -v arm-none-eabi-gcc)" != "" ]; then
         CROSS_COMPILE="arm-none-eabi-"
@@ -32,12 +22,21 @@ if [ "${CROSS_COMPILE}" == "" ]; then
 fi
 export CROSS_COMPILE="${CROSS_COMPILE}"
 
-if [ "${MAKEFLAGS}" == "" ]; then
+if [ -z "${MAKEFLAGS}" ]; then
     echo -e -n "\e[1m"
     echo "Makeflags not set, hint, to speed up compilation time, increase the number of jobs. For example:"
     echo "MAKEFLAGS='-j 4' ${0}"
     echo -e "\e[0m"
 fi
+
+set -eu
+
+CWD="$(pwd)"
+UBOOT_SRC="${CWD}/u-boot/"
+BUILD_DIR="${CWD}/_build_armhf/"
+BUILDCONFIG="msc_sm2_imx6"
+SUPPORTED_VARIANTS="sd spi"
+RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
 
 package()
 {
