@@ -33,6 +33,7 @@ set -eu
 
 CWD="$(pwd)"
 UBOOT_SRC="${CWD}/u-boot/"
+UBOOT_ENV_FILE="${CWD}/env/u-boot_env.txt"
 BUILD_DIR="${CWD}/_build_armhf/"
 BUILDCONFIG="msc_sm2_imx6"
 SUPPORTED_VARIANTS="sd spi"
@@ -68,6 +69,9 @@ ________________________________________________________________________________
         cp "${BUILD_DIR}/${BUILDCONFIG}_${variant}/SPL" "${deb_dir}/boot/spl.img-${variant}"
     done
 
+    env_file="$(basename "${UBOOT_ENV_FILE}" ".txt")"
+    cp "${BUILD_DIR}/${env_file}.bin" "${deb_dir}/boot/"
+
     # Build the debian package
     fakeroot dpkg-deb --build "${deb_dir}" "um-u-boot-${RELEASE_VERSION}.deb"
 }
@@ -77,6 +81,14 @@ add_splash()
 	# Add splashimage
 	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${BUILD_DIR}/umsplash.bmp"
 	gzip -9 -f "${BUILD_DIR}/umsplash.bmp"
+}
+
+build_u-boot_env()
+{
+    echo "Building environment for '${UBOOT_ENV_FILE}'"
+    filename="$(basename "${UBOOT_ENV_FILE}" ".txt")"
+    mkenvimage -s 131072 -p 0x00 -o "${BUILD_DIR}/${filename}.bin" "${UBOOT_ENV_FILE}"
+    chmod a+r "${BUILD_DIR}/${filename}.bin"
 }
 
 # Build the required U-Boot binaries/images.
@@ -112,6 +124,7 @@ else
 	    build_u-boot "${variant}"
 	done
 
+    build_u-boot_env
 	add_splash
 	package
 fi

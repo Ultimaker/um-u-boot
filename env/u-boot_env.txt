@@ -1,0 +1,70 @@
+autoload=no
+baudrate=115200
+boot_devs=mmc0 mmc1 emmc
+boot_fdt=try
+bootcmd=if boardinfo complete; then for btype in ${boot_devs}; do echo Attempting ${btype} boot...; if run ${btype}_boot; then; exit; fi; done; else echo ERR: Aborting boot OS, boardinfo is not complete!; false; fi; 
+bootdelay=2
+cmd_hdmi=fdt set fb_hdmi status okay;fdt set fb_hdmi mode_str 1024x768M@60;
+cmd_lcd=fdt set fb_lcd status disabled;fdt set lcd status disabled
+cmd_lvds=fdt set fb_lvds status disabled;fdt set ldb/lvds-channel@0 status disabled
+console=ttymxc0
+emmc_boot=mmc dev ${emmcdev};           if mmc rescan; then if run emmcloadenv; then run importenv; fi; if test -n $uenvcmd; then echo Running uenvcmd ...;run uenvcmd; fi;if run emmcloadimage; then run emmcboot; else echo ERR: Load image(s) from eMMC failed; false; fi; else echo ERR: eMMC scan failed; false; fi;
+emmcargs=run sysinfo; setenv bootargs console=${console},${baudrate} root=${emmcroot} ${bootargs_sysinfo} ${opt_args} 
+emmcboot=echo Booting from eMMC ...; run emmcargs; if test ${boot_fdt} = yes || test ${boot_fdt} = try; then if run emmcloadfdt; then bootm ${loadaddr} - ${fdt_addr}; else if test ${boot_fdt} = try; then bootm; else echo WARN: Cannot load the DT; fi; fi; else bootm; fi; 
+emmcdev=2
+emmcextpart=1
+emmcloadenv=echo Loading environment (${envfile}) from eMMC ...; ext4load mmc ${emmcdev}:${emmcextpart} ${loadaddr} ${envfile}; 
+emmcloadfdt=echo Loading FDT image (${imageroot}/${fdtfile}) from eMMC ...; ext2load mmc ${emmcdev}:${emmcextpart} ${fdt_addr} ${fdtfile}; 
+emmcloadimage=echo Loading linux image (${imageroot}/${image}) from eMMC ...; ext4load mmc ${emmcdev}:${emmcextpart} ${loadaddr} ${image}; 
+emmcroot=/dev/mmcblk2p2 rootwait rw
+envfile=uEnv.txt
+fdt_addr=0x18000000
+fdt_high=0xffffffff
+fdtfile=msc-sm2-imx6dl-ultimain4.2.dtb
+fdtroot=boot
+image=uImage-msc-sm2-imx6dl-ultimain4.2
+importenv=echo Importing environment (${envfile}) ...; env import -t ${loadaddr} ${filesize}; 
+initrd_high=0xffffffff
+loadaddr=0x12000000
+mmc0_boot=setenv mmcdev 0; setenv mmcroot ${mmc0root}; run mmc_boot
+mmc0root=/dev/mmcblk0p2 rootwait rw
+mmc1_boot=setenv mmcdev 1; setenv mmcroot ${mmc1root}; run mmc_boot
+mmc1root=/dev/mmcblk1p2 rootwait rw
+mmc_boot=mmc dev ${mmcdev};             if mmc rescan; then setenv uenvdev ${mmcdev}; setenv uenvpart ${mmcextpart}; if run mmcloadenv; then run importenv; fi; if test -n $uenvcmd; then echo Running uenvcmd ...;run uenvcmd; fi;if run mmcloadimage; then run mmcboot; else echo ERR: Load image(s) from MMC${uenvdev} failed; false; fi; else echo ERR: MMC scan failed; false; fi;
+mmcargs=run sysinfo; setenv bootargs console=${console},${baudrate} root=${mmcroot} ${bootargs_sysinfo} ${opt_args} 
+mmcboot=echo Booting from MMC${uenvdev} ...; run mmcargs; if test ${boot_fdt} = yes || test ${boot_fdt} = try; then if run mmcloadfdt; then bootm ${loadaddr} - ${fdt_addr}; else if test ${boot_fdt} = try; then bootm; else echo WARN: Cannot load the DT; fi; fi; else bootm; fi; 
+mmcdev=0
+mmcextpart=1
+mmcfatpart=1
+mmcloadenv=echo Loading environment (${envfile}) from MMC${uenvdev} ...; ext4load mmc ${uenvdev}:${uenvpart} ${loadaddr} ${envfile}; 
+mmcloadfdt=echo Loading FDT image (${fdtroot}/${fdtfile}) from MMC${mmcdev} ...; ext4load mmc ${mmcdev}:${mmcextpart} ${fdt_addr} ${fdtfile}; 
+mmcloadimage=echo Loading linux image (${imageroot}/${image}) from MMC${uenvdev} ...; ext4load mmc ${mmcdev}:${mmcextpart} ${loadaddr} ${image}; 
+mtdids=nor0=nor
+mtdparts=mtdparts=nor:128k(spl),128k(uboot-env),512k(uboot),1664k(logo),-(user)
+net_boot=if test -n ${serverip} ; then dhcp ;if test -n ${nfsrootpath} ; then nfs ${fdt_addr} ${serverip}:${nfsrootpath}/boot/${fdtfile}; fdt addr ${fdt_addr}; fdt resize;nfs ${loadaddr} ${serverip}:${nfsrootpath}/boot/${image}; run nfsargs; bootz ${loadaddr} - ${fdt_addr};else echo ERR: nfsrootpath not set; false; fi;else echo ERR: serverip not set; false; fi;
+nfsargs=run sysinfo; setenv bootargs console=${console},${baudrate} nfsroot=${nfsrootpath} rootwait rootfstype=nfs ip=${ipaddr}:${serverip}:${gateway}:${netmask} ${opt_args} 
+opt_args=consoleblank=0 earlyprintk pci=nomsi
+revision=N/A
+serial_number=1007481365
+spi_import_logo=mmc dev ${mmcdev}; if mmc rescan; then echo Loading logo image (${splashfile}) from mmc ...; if ext4load mmc ${mmcdev}:${mmcextpart} $loadaddr ${splashfile}; then sf probe; echo Updating logo partition ...; sf update $loadaddr logo $filesize; setenv splashsource sfsaveenvecho succeeded; else echo failed; fi; fi; 
+spi_spl_image=SPL-spi
+spi_uboot_image=u-boot.img-spi
+spi_update_all=run spi_update_spl; run spi_update_uboot;
+spi_update_spl=mmc dev ${mmcdev}; if mmc rescan; then echo Loading spl image (${spi_spl_image}) from mmc ...; if ext4load mmc ${mmcdev}:${mmcextpart} $loadaddr boot/${spi_spl_image}; then sf probe; echo Updating spl partition ...; sf update $loadaddr spl $filesize; echo succeeded; else echo failed; fi; fi; 
+spi_update_uboot=mmc dev ${mmcdev}; if mmc rescan; then echo Loading uboot image (${spi_uboot_image}) from mmc ...; if ext4load mmc ${mmcdev}:${mmcextpart} $loadaddr boot/${spi_uboot_image}; then sf probe; echo Updating uboot partition ...; sf update $loadaddr uboot $filesize; echo succeeded; else echo failed; fi; fi; 
+splashfile=logos/msc-logo-1024x768.bmp
+splashimage=0x20000000
+splashpos=m,m
+splashsource=mmc_fs
+sysinfo=setenv bootargs_sysinfo board_name=${board_name} board_variant=${variant_key}-${feature_key} serial_number=${serial_number} uboot_version=<${uboot_version}> 
+uboot_version=U-Boot 2018.03 (Jul 08 2019 - 13:52:58 +0000)
+usb_boot=if usb start && usb dev 0; then setenv uenvpart ${usbfatpart}; if run usbloadenv; then run importenv; fi; if test -n $uenvcmd; then echo Running uenvcmd ...;run uenvcmd; fi;if run usbloadimage; then run usbboot; else echo ERR: Load image(s) from USB failed; false; fi; else echo ERR: USB start failed; false; fi; 
+usbargs=run sysinfo; setenv bootargs console=${console},${baudrate} root=${usbroot} ${bootargs_sysinfo} ${opt_args} 
+usbboot=echo Booting from USB ...; run usbargs; if test ${boot_fdt} = yes || test ${boot_fdt} = try; then if run usbloadfdt; then bootz ${loadaddr} - ${fdt_addr}; else if test ${boot_fdt} = try; then bootz; else echo WARN: Cannot load the DT; fi; fi; else bootz; fi; 
+usbdev=0
+usbextpart=2
+usbfatpart=1
+usbloadenv=echo Loading environment (${envfile}) from USB ...; fatload usb ${usbdev}:${uenvpart} ${loadaddr} ${imageroot}/${envfile}; 
+usbloadfdt=echo Loading FDT image (${fdtroot}/${fdtfile}) from USB ...; ext4load usb ${usbdev}:${usbextpart} ${fdt_addr} ${fdtroot}/${fdtfile}; 
+usbloadimage=echo Loading linux image (${imageroot}/${image}) from USB ...; ext4load usb ${usbdev}:${usbextpart} ${loadaddr} ${imageroot}/${image}; 
+usbroot=/dev/sda2 rootwait rw
