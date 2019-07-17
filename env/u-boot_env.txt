@@ -4,7 +4,7 @@ boot_devs=mmc0 mmc1 emmc
 boot_fdt=try
 bootcmd=if boardinfo complete; then for btype in ${boot_devs}; do echo Attempting ${btype} boot...; if run ${btype}_boot; then; exit; fi; done; else echo ERR: Aborting boot OS, boardinfo is not complete!; false; fi; 
 bootdelay=2
-cmd_hdmi=fdt set fb_hdmi status okay;fdt set fb_hdmi mode_str 1024x768M@60;
+cmd_hdmi=fdt set fb_hdmi status okay;fdt set fb_hdmi mode_str 800x320@60;
 cmd_lcd=fdt set fb_lcd status disabled;fdt set lcd status disabled
 cmd_lvds=fdt set fb_lvds status disabled;fdt set ldb/lvds-channel@0 status disabled
 console=ttymxc0
@@ -46,16 +46,16 @@ nfsargs=run sysinfo; setenv bootargs console=${console},${baudrate} nfsroot=${nf
 opt_args=consoleblank=0 earlyprintk pci=nomsi
 revision=N/A
 serial_number=1007481365
-spi_import_logo=mmc dev ${mmcdev}; if mmc rescan; then echo Loading logo image (${splashfile}) from mmc ...; if ext4load mmc ${mmcdev}:${mmcextpart} $loadaddr ${splashfile}; then sf probe; echo Updating logo partition ...; sf update $loadaddr logo $filesize; setenv splashsource sfsaveenvecho succeeded; else echo failed; fi; fi; 
+spi_import_logo=mmc dev ${mmcdev}; if mmc rescan; then echo Loading logo image (${splashfile}) from mmc ...; if ext4load mmc ${mmcdev}:${mmcextpart} $loadaddr ${splashfile}; then sf probe; echo Updating logo partition ...; sf update $loadaddr logo $filesize; setenv splashsource sf; saveenv; echo succeeded; else echo failed; fi; fi;
 spi_spl_image=SPL-spi
 spi_uboot_image=u-boot.img-spi
 spi_update_all=run spi_update_spl; run spi_update_uboot;
 spi_update_spl=mmc dev ${mmcdev}; if mmc rescan; then echo Loading spl image (${spi_spl_image}) from mmc ...; if ext4load mmc ${mmcdev}:${mmcextpart} $loadaddr boot/${spi_spl_image}; then sf probe; echo Updating spl partition ...; sf update $loadaddr spl $filesize; echo succeeded; else echo failed; fi; fi; 
 spi_update_uboot=mmc dev ${mmcdev}; if mmc rescan; then echo Loading uboot image (${spi_uboot_image}) from mmc ...; if ext4load mmc ${mmcdev}:${mmcextpart} $loadaddr boot/${spi_uboot_image}; then sf probe; echo Updating uboot partition ...; sf update $loadaddr uboot $filesize; echo succeeded; else echo failed; fi; fi; 
-splashfile=logos/msc-logo-1024x768.bmp
+splashfile=umsplash-800x320.bmp
 splashimage=0x20000000
 splashpos=m,m
-splashsource=mmc_fs
+splashsource=emmc_fs1
 sysinfo=setenv bootargs_sysinfo board_name=${board_name} board_variant=${variant_key}-${feature_key} serial_number=${serial_number} uboot_version=<${uboot_version}> 
 uboot_version=U-Boot 2018.03 (Jul 08 2019 - 13:52:58 +0000)
 usb_boot=if usb start && usb dev 0; then setenv uenvpart ${usbfatpart}; if run usbloadenv; then run importenv; fi; if test -n $uenvcmd; then echo Running uenvcmd ...;run uenvcmd; fi;if run usbloadimage; then run usbboot; else echo ERR: Load image(s) from USB failed; false; fi; else echo ERR: USB start failed; false; fi; 
