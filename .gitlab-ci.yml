@@ -34,9 +34,7 @@ lint_shellscripts:
   stage: lint
   image: registry.hub.docker.com/koalaman/shellcheck-alpine:stable
   script:
-    - shellcheck -x -C -f tty "build"*".sh"
-    - find 'test/' -iname '*.sh' -exec shellcheck -x -C -f tty {} +
-    - find 'ci/' -iname '*.sh' -exec shellcheck -x -C -f tty {} +
+    - ./run_shellcheck.sh
 
 # Prepare stage
 # =============

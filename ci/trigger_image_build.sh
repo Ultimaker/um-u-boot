@@ -6,8 +6,9 @@ if JSON=$(curl --fail -s -X POST -F "token=${TRIGGER_BUILD_TOKEN}" -F "ref=${CI_
   echo "${JSON}" | jq '"Started pipeline at: " + .web_url'
 else
   echo "Couldn't start image build, possible reasons for this are:"
-  echo " - You didn't enter a valid trigger token as TRIGGER_BUILD_TOKEN in the Gitlab CI settings"
+  echo " - You didn't enter a valid trigger token as TRIGGER_BUILD_TOKEN in the Gitlab CI settings for this project."
   echo " - No branch named '${CI_COMMIT_REF_NAME}' exists on jedi-build."
+  echo " - '${CI_COMMIT_REF_NAME}' exists on jedi-build, but is not configured for CI (i.e., the branch has no '.gitlab-ci.yml')."
 fi
 
 exit 0

@@ -17,7 +17,7 @@ CROSS_COMPILE="${CROSS_COMPILE:-""}"
 DOCKER_WORK_DIR="${WORKDIR:-/build}"
 
 run_env_check="yes"
-run_linter="yes"
+run_linters="yes"
 run_tests="yes"
 
 update_docker_image()
@@ -44,28 +44,15 @@ run_in_docker()
         "${@}"
 }
 
-run_in_shell()
-{
-    ARCH="${ARCH}" \
-    RELEASE_VERSION="${RELEASE_VERSION}" \
-    CROSS_COMPILE="${CROSS_COMPILE}" \
-    eval "${@}"
-}
-
-run_script()
-{
-    run_in_docker "${@}"
-}
-
 env_check()
 {
-    run_script "test/buildenv_check.sh"
+    run_in_docker "./docker_env/buildenv_check.sh"
 }
 
 run_build()
 {
     git submodule update --init --recursive
-    run_script "./build.sh" "${@}"
+    run_in_docker "./build.sh" "${@}"
 }
 
 run_tests()
@@ -73,18 +60,28 @@ run_tests()
     echo "There are no tests available for this repository."
 }
 
-run_linter()
+run_linters()
 {
-    "./run_linter.sh"
+    run_shellcheck
+}
+
+run_shellcheck()
+{
+    docker run \
+        --rm \
+        -v "$(pwd):${DOCKER_WORK_DIR}" \
+        -w "${DOCKER_WORK_DIR}" \
+        "registry.hub.docker.com/koalaman/shellcheck-alpine:stable" \
+        "./run_shellcheck.sh"
 }
 
 usage()
 {
     echo "Usage: ${0} [OPTIONS]"
-    echo "  -c   Skip run of build environment checks"
+    echo "  -c   Skip build environment checks"
     echo "  -h   Print usage"
-    echo "  -l   Skip linter of shell scripts"
-    echo "  -t   Skip run of tests"
+    echo "  -l   Skip code linting"
+    echo "  -t   Skip tests"
 }
 
 while getopts ":chlt" options; do
@@ -97,7 +94,7 @@ while getopts ":chlt" options; do
         exit 0
         ;;
     l)
-        run_linter="no"
+        run_linters="no"
         ;;
     t)
         run_tests="no"
@@ -114,16 +111,19 @@ while getopts ":chlt" options; do
 done
 shift "$((OPTIND - 1))"
 
-if command -V docker; then
-    update_docker_image
+if ! command -V docker; then
+    echo "Docker not found, docker-less builds are not supported."
+    exit 1
 fi
+
+update_docker_image
 
 if [ "${run_env_check}" = "yes" ]; then
     env_check
 fi
 
-if [ "${run_linter}" = "yes" ]; then
-    run_linter
+if [ "${run_linters}" = "yes" ]; then
+    run_linters
 fi
 
 run_build "${@}"
