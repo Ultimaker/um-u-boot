@@ -1,3 +1,4 @@
+
 [submodule "u-boot"]
 	path = u-boot
-	url = ../u-boot
+	url = ../u-boot-denx-msc.git

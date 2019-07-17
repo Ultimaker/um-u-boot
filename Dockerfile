@@ -8,7 +8,7 @@ RUN apt-get update && \
         device-tree-compiler \
         fakeroot \
         gcc \
-        gcc-arm-none-eabi \
+        gcc-arm-linux-gnueabihf \
         imagemagick \
         make \
         ncurses-dev \
@@ -17,5 +17,4 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/cache/apt/*
 
-ENV CROSS_COMPILE="arm-none-eabi-"
-COPY test/buildenv_check.sh /test/buildenv_check.sh
+COPY docker_env/buildenv_check.sh /test/buildenv_check.sh

@@ -2,11 +2,11 @@
 # shellcheck disable=SC2044
 # shellcheck disable=SC1117
 
-# This scripts builds the bootloader for the A20 linux system that we use.
+# This scripts builds and packs the bootloaders for the msc-sm2-imx6 linux SOM.
+# It build two variations of the bootloader; one for the SPI-NOR flash and one
+# for running from SD card.
+# This U-Boot variant has a separate SPL and does not have a separate environment.
 
-# Check for a valid cross compiler. When unset, the kernel tries to build itself
-# using arm-none-eabi-gcc, so we need to ensure it exists. Because printenv and
-# which can cause bash -e to exit, so run this before setting this up.
 if [ "${CROSS_COMPILE}" == "" ]; then
     if [ "$(command -v arm-none-eabi-gcc)" != "" ]; then
         CROSS_COMPILE="arm-none-eabi-"
@@ -22,7 +22,7 @@ if [ "${CROSS_COMPILE}" == "" ]; then
 fi
 export CROSS_COMPILE="${CROSS_COMPILE}"
 
-if [ "${MAKEFLAGS}" == "" ]; then
+if [ -z "${MAKEFLAGS}" ]; then
     echo -e -n "\e[1m"
     echo "Makeflags not set, hint, to speed up compilation time, increase the number of jobs. For example:"
     echo "MAKEFLAGS='-j 4' ${0}"
@@ -32,73 +32,99 @@ fi
 set -eu
 
 CWD="$(pwd)"
+UBOOT_SRC="${CWD}/u-boot/"
+UBOOT_ENV_FILE="${CWD}/env/u-boot_env.txt"
+BUILD_DIR="${CWD}/_build_armhf/"
+BUILDCONFIG="msc_sm2_imx6"
+SUPPORTED_VARIANTS="sd spi"
+RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
 
-# Which bootloader to build.
-UBOOT="${CWD}/u-boot/"
-
-# Which bootloader config to build.
-BUILDCONFIG="opinicus"
-
-# Setup internal variables.
-UCONFIG="${CWD}/configs/${BUILDCONFIG}_config"
-UBOOT_BUILD_DIR="${CWD}/_build_armhf/${BUILDCONFIG}-u-boot"
-
-u-boot_build()
+package()
 {
-	#Check if the release version number is set, if not, we are building a dev version.
-	RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
+    # Create Debian package data directory
+	deb_dir="${CWD}/debian"
+
+	rm -r "${deb_dir}" 2> /dev/null || true
+	mkdir -p "${deb_dir}/boot"
+
+    mkdir -p "${deb_dir}/DEBIAN"
+    cat > debian/DEBIAN/control <<-\
+________________________________________________________________________________________________
+Package: um-u-boot
+Conflicts: u-boot-sunxi
+Replaces: u-boot-sunxi
+Version: ${RELEASE_VERSION}
+Architecture: armhf
+Maintainer: Anonymous <software-embedded-platform@ultimaker.com>
+Section: admin
+Priority: optional
+Homepage: http://www.denx.de/wiki/U-Boot/
+Description: U-Boot package with SPI-NOR/SD U-boot and SPL binary for the MSC IMX.6.
+________________________________________________________________________________________________
+
+    cp "${BUILD_DIR}/umsplash.bmp.gz" "${deb_dir}/boot/"
+
+    for variant in ${SUPPORTED_VARIANTS}; do
+        cp "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot.img" "${deb_dir}/boot/u-boot.img-${variant}"
+        cp "${BUILD_DIR}/${BUILDCONFIG}_${variant}/SPL" "${deb_dir}/boot/spl.img-${variant}"
+    done
+
+    env_file="$(basename "${UBOOT_ENV_FILE}" ".txt")"
+    cp "${BUILD_DIR}/${env_file}.bin" "${deb_dir}/boot/"
+
+    # Build the debian package
+    fakeroot dpkg-deb --build "${deb_dir}" "um-u-boot-${RELEASE_VERSION}.deb"
+}
+
+add_splash()
+{
+	# Add splashimage
+	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${BUILD_DIR}/umsplash.bmp"
+	gzip -9 -f "${BUILD_DIR}/umsplash.bmp"
+}
+
+build_u-boot_env()
+{
+    echo "Building environment for '${UBOOT_ENV_FILE}'"
+    filename="$(basename "${UBOOT_ENV_FILE}" ".txt")"
+    mkenvimage -s 131072 -p 0x00 -o "${BUILD_DIR}/${filename}.bin" "${UBOOT_ENV_FILE}"
+    chmod a+r "${BUILD_DIR}/${filename}.bin"
+}
+
+# Build the required U-Boot binaries/images.
+# param: variant: can be either sd or spi.
+build_u-boot()
+{
+    variant="${1}"
+    config="${BUILDCONFIG}_${variant}"
+    uconfig="${CWD}/configs/${config}_defconfig"
+    build_dir="${BUILD_DIR}/${config}"
 
 	# Prepare the build environment
-	mkdir -p "${UBOOT_BUILD_DIR}"
-	cd "${UBOOT}"
+	mkdir -p "${build_dir}"
+	cd "${UBOOT_SRC}"
 
+	# Build the u-boot image files
+	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}" all
 
-	# Build the u-boot image file
-	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${UBOOT_BUILD_DIR}" "KCONFIG_CONFIG=${UCONFIG}"
-	cd "${CWD}"
-
-	# Build the debian package data
-	DEB_DIR="${CWD}/debian"
-
-	rm -r "${DEB_DIR}" 2> /dev/null || true
-	mkdir -p "${DEB_DIR}/boot"
-	cp "${UBOOT_BUILD_DIR}/u-boot-sunxi-with-spl.bin" "${DEB_DIR}/boot/"
-
-	# Add splashimage
-	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${UBOOT_BUILD_DIR}/umsplash.bmp"
-	gzip -9 -f "${UBOOT_BUILD_DIR}/umsplash.bmp"
-	cp "${UBOOT_BUILD_DIR}/umsplash.bmp.gz" "${DEB_DIR}/boot/"
-
-	# Prepare the u-boot environment
-	for env in $(find env/ -name '*.env' -exec basename {} \;); do
-		echo "Building environment for ${env%.env}"
-		mkenvimage -s 131072 -p 0x00 -o "${UBOOT_BUILD_DIR}/${env}.bin" "env/${env}"
-		chmod a+r "${UBOOT_BUILD_DIR}/${env}.bin"
-		cp "env/${env}" "${UBOOT_BUILD_DIR}/${env}.bin" "${DEB_DIR}/boot/"
-	done
-
-	mkdir -p "${DEB_DIR}/DEBIAN"
-	cat > debian/DEBIAN/control <<-EOT
-		Package: um-u-boot
-		Conflicts: u-boot-sunxi
-		Replaces: u-boot-sunxi
-		Version: ${RELEASE_VERSION}
-		Architecture: armhf
-		Maintainer: Anonymous <software-embedded-platform@ultimaker.com>
-		Section: admin
-		Priority: optional
-		Homepage: http://www.denx.de/wiki/U-Boot/
-		Description: u-boot image with spl for the Olimex OLinuXino Lime2 eMMC.
-	EOT
-
-	# Build the debian package
-	fakeroot dpkg-deb --build "${DEB_DIR}" "um-u-boot-${RELEASE_VERSION}.deb"
+    cd "${CWD}"
 }
 
 if [ ${#} -gt 0 ]; then
-	pushd "${UBOOT}"
-	ARCH=arm make "O=${UBOOT_BUILD_DIR}" "KCONFIG_CONFIG=${UCONFIG}" "${@}"
-	popd
+	cd "${UBOOT_SRC}"
+    for variant in ${SUPPORTED_VARIANTS}; do
+        config="${BUILDCONFIG}_${variant}"
+        uconfig="${CWD}/configs/${config}_defconfig"
+        build_dir="${BUILD_DIR}/${config}"
+        ARCH=arm make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}" "${@}"
+	done
+	cd "${CWD}"
 else
-	u-boot_build
+    for variant in ${SUPPORTED_VARIANTS}; do
+	    build_u-boot "${variant}"
+	done
+
+    build_u-boot_env
+	add_splash
+	package
 fi
