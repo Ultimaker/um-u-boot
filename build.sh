@@ -88,7 +88,7 @@ ________________________________________________________________________________
     env_file="$(basename "${UBOOT_ENV_FILE}" ".txt")"
     copy_file "${BUILD_DIR}/${env_file}.bin" "${deb_dir}/boot/${env_file}.bin"
 
-    copy_file "${BUILD_DIR}/umsplash.bmp" "${deb_dir}/boot/$(basename "${SPLASHSCREEN}")"
+    copy_file "${CWD}/splash/umsplash.bmp" "${deb_dir}/boot/$(basename "${SPLASHSCREEN}")"
 
     # Build the debian package
     fakeroot dpkg-deb --build "${deb_dir}" "um-u-boot-${RELEASE_VERSION}.deb"
@@ -96,9 +96,10 @@ ________________________________________________________________________________
 
 add_splash()
 {
-	# Add splashimage
-	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${BUILD_DIR}/umsplash.bmp"
+	# Disabled live conversion, because it does not work in docker, reason is unclear. But it is not worth the effort right now.
+#	convert -density 600 "${CWD}/splash/umsplash.svg" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${BUILD_DIR}/umsplash.bmp"
 #	gzip -9 -f "${BUILD_DIR}/umsplash.bmp"
+    return
 }
 
 build_u-boot_env()
