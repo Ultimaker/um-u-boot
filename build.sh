@@ -34,10 +34,28 @@ set -eu
 CWD="$(pwd)"
 UBOOT_SRC="${CWD}/u-boot/"
 UBOOT_ENV_FILE="${CWD}/env/u-boot_env.txt"
+SPLASHSCREEN="${CWD}/splash/umsplash-800x320.bmp"
 BUILD_DIR="${CWD}/_build_armhf/"
 BUILDCONFIG="msc_sm2_imx6"
 SUPPORTED_VARIANTS="sd spi"
 RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
+
+##
+# copy_file() - Copy a file from target to destination file and
+#               Stop the script if it fails.
+# $1 : src file
+# $2 : target file
+#
+copy_file()
+{
+    src_file="${1}"
+    dst_file="${2}"
+
+    if ! cp "${src_file}" "${dst_file}"; then
+        echo "Failed to copy file '${src_file}' to '${dst_file}', unable to continue."
+        exit 1
+    fi
+}
 
 package()
 {
@@ -62,15 +80,15 @@ Homepage: http://www.denx.de/wiki/U-Boot/
 Description: U-Boot package with SPI-NOR/SD U-boot and SPL binary for the MSC IMX.6.
 ________________________________________________________________________________________________
 
-    cp "${BUILD_DIR}/umsplash.bmp.gz" "${deb_dir}/boot/"
-
     for variant in ${SUPPORTED_VARIANTS}; do
-        cp "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot.img" "${deb_dir}/boot/u-boot.img-${variant}"
-        cp "${BUILD_DIR}/${BUILDCONFIG}_${variant}/SPL" "${deb_dir}/boot/spl.img-${variant}"
+        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot.img" "${deb_dir}/boot/u-boot.img-${variant}"
+        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/SPL" "${deb_dir}/boot/spl.img-${variant}"
     done
 
     env_file="$(basename "${UBOOT_ENV_FILE}" ".txt")"
-    cp "${BUILD_DIR}/${env_file}.bin" "${deb_dir}/boot/"
+    copy_file "${BUILD_DIR}/${env_file}.bin" "${deb_dir}/boot/${env_file}.bin"
+
+    copy_file "${CWD}/splash/umsplash.bmp" "${deb_dir}/boot/$(basename "${SPLASHSCREEN}")"
 
     # Build the debian package
     fakeroot dpkg-deb --build "${deb_dir}" "um-u-boot-${RELEASE_VERSION}.deb"
@@ -78,9 +96,10 @@ ________________________________________________________________________________
 
 add_splash()
 {
-	# Add splashimage
-	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${BUILD_DIR}/umsplash.bmp"
-	gzip -9 -f "${BUILD_DIR}/umsplash.bmp"
+	# Disabled live conversion, because it does not work in docker, reason is unclear. But it is not worth the effort right now.
+#	convert -density 600 "${CWD}/splash/umsplash.svg" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${BUILD_DIR}/umsplash.bmp"
+#	gzip -9 -f "${BUILD_DIR}/umsplash.bmp"
+    return
 }
 
 build_u-boot_env()
