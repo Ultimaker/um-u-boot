@@ -1,0 +1,5 @@
+#!/bin/sh
+# Enable the service
+systemctl daemon-reload
+systemctl enable uboot-splashimage.service
+

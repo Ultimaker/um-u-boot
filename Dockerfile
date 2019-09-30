@@ -5,10 +5,12 @@ LABEL Maintainer="software-embedded-platform@ultimaker.com" \
 
 RUN apt-get update && \
     apt-get install -y \
+        bzip2 \
         device-tree-compiler \
         fakeroot \
         gcc \
         gcc-arm-linux-gnueabihf \
+        gettext \
         imagemagick \
         make \
         ncurses-dev \
