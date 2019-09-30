@@ -34,7 +34,11 @@ set -eu
 CWD="$(pwd)"
 UBOOT_SRC="${CWD}/u-boot/"
 UBOOT_ENV_FILE="${CWD}/env/u-boot_env.txt"
-SPLASHSCREEN="${CWD}/splash/umsplash-800x320.bmp"
+UBOOT_SPLASHFILE="umsplash-800x320.bmp"
+UMSPLASH="${CWD}/splash/SplashUM.bmp.bz2"
+SPLASH_SERVICE="${CWD}/scripts/uboot-splashimage.service"
+SPLASH_SCRIPT="${CWD}/scripts/uboot-set-splashimage.sh"
+
 BUILD_DIR="${CWD}/_build_armhf/"
 BUILDCONFIG="msc_sm2_imx6"
 SUPPORTED_VARIANTS="sd spi"
@@ -60,25 +64,15 @@ copy_file()
 package()
 {
     # Create Debian package data directory
-	deb_dir="${CWD}/debian"
+	deb_dir="${BUILD_DIR}/debian"
 
 	rm -r "${deb_dir}" 2> /dev/null || true
 	mkdir -p "${deb_dir}/boot"
 
     mkdir -p "${deb_dir}/DEBIAN"
-    cat > debian/DEBIAN/control <<-\
-________________________________________________________________________________________________
-Package: um-u-boot
-Conflicts: u-boot-sunxi
-Replaces: u-boot-sunxi
-Version: ${RELEASE_VERSION}
-Architecture: armhf
-Maintainer: Anonymous <software-embedded-platform@ultimaker.com>
-Section: admin
-Priority: optional
-Homepage: http://www.denx.de/wiki/U-Boot/
-Description: U-Boot package with SPI-NOR/SD U-boot and SPL binary for the MSC IMX.6.
-________________________________________________________________________________________________
+
+    # Create a Debian control file to pack up a Debian package
+    RELEASE_VERSION="${RELEASE_VERSION}" envsubst "\${RELEASE_VERSION}" < "${CWD}/scripts/debian_control" > "${deb_dir}/DEBIAN/control"
 
     for variant in ${SUPPORTED_VARIANTS}; do
         copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot.img" "${deb_dir}/boot/u-boot.img-${variant}"
@@ -88,7 +82,31 @@ ________________________________________________________________________________
     env_file="$(basename "${UBOOT_ENV_FILE}" ".txt")"
     copy_file "${BUILD_DIR}/${env_file}.bin" "${deb_dir}/boot/${env_file}.bin"
 
-    copy_file "${CWD}/splash/umsplash.bmp" "${deb_dir}/boot/$(basename "${SPLASHSCREEN}")"
+    # Set the default splash image to UM logo
+    if ! bunzip2 -k -c  "${UMSPLASH}" > "${deb_dir}/boot/${UBOOT_SPLASHFILE}"; then
+        echo "Failed to decompress splash file. Aborting..."
+        exit 1
+    fi
+
+    # Copy SplashImage script
+    mkdir -p "${deb_dir}/usr/share/uboot-splashimage/"
+    copy_file "${SPLASH_SCRIPT}" "${deb_dir}/usr/share/uboot-splashimage/"
+    chmod 755 "${deb_dir}/usr/share/uboot-splashimage/$(basename "${SPLASH_SCRIPT}")"     # Make sure the file is executable.
+
+    # Copy Image files to script directory
+    for file in "$(dirname "${UMSPLASH}")"/*.bmp.bz2; do
+        copy_file "${file}" "${deb_dir}/usr/share/uboot-splashimage/"
+    done;
+
+    # Copy SplashImage SYSTEMD Service
+    mkdir -p "${deb_dir}/lib/systemd/system/"
+    copy_file "${SPLASH_SERVICE}" "${deb_dir}/lib/systemd/system/"
+
+    # Copy preinst debian script file
+    copy_file "${CWD}/scripts/preinst" "${deb_dir}/DEBIAN/"
+
+    # Copy postinst debian script file
+    copy_file "${CWD}/scripts/postinst" "${deb_dir}/DEBIAN/"
 
     # Build the debian package
     fakeroot dpkg-deb --build "${deb_dir}" "um-u-boot-${RELEASE_VERSION}.deb"

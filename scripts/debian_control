@@ -1,0 +1,10 @@
+Package: um-u-boot
+Conflicts: u-boot-sunxi
+Replaces: u-boot-sunxi
+Version: ${RELEASE_VERSION}
+Architecture: armhf
+Maintainer: Anonymous <software-embedded-platform@ultimaker.com>
+Section: admin
+Priority: optional
+Homepage: http://www.denx.de/wiki/U-Boot/
+Description: U-Boot package with SPI-NOR/SD U-boot and SPL binary for the MSC IMX.6.
