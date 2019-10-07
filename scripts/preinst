@@ -20,3 +20,4 @@ if ! mountpoint -q /boot; then
 
     mount "${boot_part}" /boot
 fi
+exit 0
