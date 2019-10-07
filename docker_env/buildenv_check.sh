@@ -7,7 +7,9 @@ TEST_DIR=$(mktemp -d)
 CROSS_COMPILE="${CROSS_COMPILE:-""}"
 
 COMMANDS=" \
+bunzip2 \
 convert \
+envsubst \
 fakeroot \
 gzip \
 make \
