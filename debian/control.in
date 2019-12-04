@@ -1,0 +1,10 @@
+Package: @PACKAGE_NAME@
+Version: @RELEASE_VERSION@
+Architecture: @ARCH@
+Maintainer: Ultimaker <software-embedded@ultimaker.com>
+Conflicts: u-boot-sunxi
+Replaces: u-boot-sunxi
+Section: admin
+Priority: optional
+Homepage: http://www.denx.de/wiki/U-Boot/
+Description: u-boot image with spl for the Olimex OLinuXino Lime2 eMMC.
