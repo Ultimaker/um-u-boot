@@ -8,7 +8,6 @@ CROSS_COMPILE="${CROSS_COMPILE:-""}"
 
 COMMANDS=" \
 convert \
-fakeroot \
 gzip \
 make \
 mkenvimage \
