@@ -15,8 +15,8 @@ usage()
     echo ""
     echo "This script wil create a tag and push that to origin, this triggers the CI job to release"
     echo "to CloudSmith. The CI release job will differentiate between pushing to official release"
-    echo "storage or development release storage, pushing to release storage is  triggerred by adding"
-    echo "the '-dev' postfix to the release version e.g. 6.2.0-dev."
+    echo "storage or development release storage, pushing to development release storage is "
+    echo "triggerred by adding the '-dev' postfix to the release version e.g. 6.2.0-dev."
     echo ""
     echo "    -h   Print usage"
 }
