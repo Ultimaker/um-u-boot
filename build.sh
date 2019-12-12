@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # shellcheck disable=SC2044
 # shellcheck disable=SC1117
 
@@ -7,14 +7,18 @@
 # for running from SD card.
 # This U-Boot variant has a separate SPL and does not have a separate environment.
 
-if [ "${CROSS_COMPILE}" == "" ]; then
+
+# Check for a valid cross compiler. When unset, the kernel tries to build itself
+# using arm-none-eabi-gcc, so we need to ensure it exists. Because printenv and
+# which can cause bash -e to exit, so run this before setting this up.
+if [ "${CROSS_COMPILE}" = "" ]; then
     if [ "$(command -v arm-none-eabi-gcc)" != "" ]; then
         CROSS_COMPILE="arm-none-eabi-"
     fi
     if [ "$(command -v arm-linux-gnueabihf-gcc)" != "" ]; then
         CROSS_COMPILE="arm-linux-gnueabihf-"
     fi
-    if [ "${CROSS_COMPILE}" == "" ]; then
+    if [ "${CROSS_COMPILE}" = "" ]; then
         echo "No suiteable cross-compiler found."
         echo "One can be set explicitly via the environment variable CROSS_COMPILE='arm-linux-gnueabihf-' for example."
         exit 1
@@ -22,27 +26,35 @@ if [ "${CROSS_COMPILE}" == "" ]; then
 fi
 export CROSS_COMPILE="${CROSS_COMPILE}"
 
-if [ -z "${MAKEFLAGS}" ]; then
-    echo -e -n "\e[1m"
+if [ "${MAKEFLAGS}" = "" ]; then
     echo "Makeflags not set, hint, to speed up compilation time, increase the number of jobs. For example:"
     echo "MAKEFLAGS='-j 4' ${0}"
-    echo -e "\e[0m"
 fi
 
 set -eu
 
-CWD="$(pwd)"
-UBOOT_SRC="${CWD}/u-boot/"
-UBOOT_ENV_FILE="${CWD}/env/u-boot_env.txt"
-UBOOT_SPLASHFILE="umsplash-800x320.bmp"
-UMSPLASH="${CWD}/splash/SplashUM.bmp.bz2"
-SPLASH_SERVICE="${CWD}/scripts/uboot-splashimage.service"
-SPLASH_SCRIPT="${CWD}/scripts/uboot-set-splashimage.sh"
+ARCH="armhf"
+UM_ARCH="imx6dl" # Empty string, or sun7i for R1, or imx6dl for R2
 
-BUILD_DIR="${CWD}/_build_armhf/"
+SRC_DIR="$(pwd)"
+UBOOT_DIR="${SRC_DIR}/u-boot/"
+UBOOT_ENV_FILE="${SRC_DIR}/env/u-boot_env.txt"
+
+BUILD_DIR_TEMPLATE="_build"
+BUILD_DIR="${SRC_DIR}/${BUILD_DIR_TEMPLATE}"
+
+# Setup internal variables.
 BUILDCONFIG="msc_sm2_imx6"
 SUPPORTED_VARIANTS="sd spi"
-RELEASE_VERSION=${RELEASE_VERSION:-9999.99.99}
+
+# Debian package information
+PACKAGE_NAME="${PACKAGE_NAME:-um-u-boot}"
+RELEASE_VERSION="${RELEASE_VERSION:-999.999.999}"
+
+UBOOT_SPLASHFILE="umsplash-800x320.bmp"
+UMSPLASH="${SRC_DIR}/splash/SplashUM.bmp.bz2"
+SPLASH_SERVICE="${SRC_DIR}/scripts/uboot-splashimage.service"
+SPLASH_SCRIPT="${SRC_DIR}/scripts/uboot-set-splashimage.sh"
 
 ##
 # copy_file() - Copy a file from target to destination file and
@@ -61,66 +73,69 @@ copy_file()
     fi
 }
 
-package()
+create_debian_package()
 {
-    # Create Debian package data directory
-	deb_dir="${BUILD_DIR}/debian"
+    echo "Creating Debian package.."
+    DEB_DIR="${BUILD_DIR}/debian_deb_build"
 
-	rm -r "${deb_dir}" 2> /dev/null || true
-	mkdir -p "${deb_dir}/boot"
+    mkdir -p "${DEB_DIR}/DEBIAN"
+    sed -e 's|@ARCH@|'"${ARCH}"'|g' \
+        -e 's|@PACKAGE_NAME@|'"${PACKAGE_NAME}"'|g' \
+        -e 's|@RELEASE_VERSION@|'"${RELEASE_VERSION}-${UM_ARCH}"'|g' \
+        "${SRC_DIR}/debian/control.in" > "${DEB_DIR}/DEBIAN/control"
 
-    mkdir -p "${deb_dir}/DEBIAN"
-
-    # Create a Debian control file to pack up a Debian package
-    RELEASE_VERSION="${RELEASE_VERSION}" envsubst "\${RELEASE_VERSION}" < "${CWD}/scripts/debian_control" > "${deb_dir}/DEBIAN/control"
+	mkdir -p "${DEB_DIR}/boot"
 
     for variant in ${SUPPORTED_VARIANTS}; do
-        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot.img" "${deb_dir}/boot/u-boot.img-${variant}"
-        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/SPL" "${deb_dir}/boot/spl.img-${variant}"
+        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot.img" "${DEB_DIR}/boot/u-boot.img-${variant}"
+        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/SPL" "${DEB_DIR}/boot/spl.img-${variant}"
     done
 
     env_file="$(basename "${UBOOT_ENV_FILE}" ".txt")"
-    copy_file "${BUILD_DIR}/${env_file}.bin" "${deb_dir}/boot/${env_file}.bin"
+    copy_file "${BUILD_DIR}/${env_file}.bin" "${DEB_DIR}/boot/${env_file}.bin"
 
     # Set the default splash image to UM logo
-    if ! bunzip2 -k -c  "${UMSPLASH}" > "${deb_dir}/boot/${UBOOT_SPLASHFILE}"; then
+    if ! bunzip2 -k -c  "${UMSPLASH}" > "${DEB_DIR}/boot/${UBOOT_SPLASHFILE}"; then
         echo "Failed to decompress splash file. Aborting..."
         exit 1
     fi
 
     # Copy SplashImage script
-    mkdir -p "${deb_dir}/usr/share/uboot-splashimage/"
-    copy_file "${SPLASH_SCRIPT}" "${deb_dir}/usr/share/uboot-splashimage/"
-    chmod 755 "${deb_dir}/usr/share/uboot-splashimage/$(basename "${SPLASH_SCRIPT}")"     # Make sure the file is executable.
+    mkdir -p "${DEB_DIR}/usr/share/uboot-splashimage/"
+    copy_file "${SPLASH_SCRIPT}" "${DEB_DIR}/usr/share/uboot-splashimage/"
+    chmod 755 "${DEB_DIR}/usr/share/uboot-splashimage/$(basename "${SPLASH_SCRIPT}")"     # Make sure the file is executable.
 
     # Copy Image files to script directory
     for file in "$(dirname "${UMSPLASH}")"/*.bmp.bz2; do
-        copy_file "${file}" "${deb_dir}/usr/share/uboot-splashimage/"
+        copy_file "${file}" "${DEB_DIR}/usr/share/uboot-splashimage/"
     done;
 
     # Copy SplashImage SYSTEMD Service
-    mkdir -p "${deb_dir}/lib/systemd/system/"
-    copy_file "${SPLASH_SERVICE}" "${deb_dir}/lib/systemd/system/"
+    mkdir -p "${DEB_DIR}/lib/systemd/system/"
+    copy_file "${SPLASH_SERVICE}" "${DEB_DIR}/lib/systemd/system/"
 
     # Copy preinst debian script file
-    copy_file "${CWD}/scripts/preinst" "${deb_dir}/DEBIAN/"
+    copy_file "${SRC_DIR}/scripts/preinst" "${DEB_DIR}/DEBIAN/"
 
     # Copy postinst debian script file
-    copy_file "${CWD}/scripts/postinst" "${deb_dir}/DEBIAN/"
+    copy_file "${SRC_DIR}/scripts/postinst" "${DEB_DIR}/DEBIAN/"
 
-    # Build the debian package
-    fakeroot dpkg-deb --build "${deb_dir}" "um-u-boot-${RELEASE_VERSION}.deb"
+    DEB_PACKAGE="${PACKAGE_NAME}_${RELEASE_VERSION}-${UM_ARCH}_${ARCH}.deb"
+
+    dpkg-deb --build --root-owner-group "${DEB_DIR}" "${BUILD_DIR}/${DEB_PACKAGE}"
+    dpkg-deb -c "${BUILD_DIR}/${DEB_PACKAGE}"
 }
 
-add_splash()
+generate_splash_image()
 {
 	# Disabled live conversion, because it does not work in docker, reason is unclear. But it is not worth the effort right now.
-#	convert -density 600 "${CWD}/splash/umsplash.svg" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${BUILD_DIR}/umsplash.bmp"
-#	gzip -9 -f "${BUILD_DIR}/umsplash.bmp"
+#    echo "Generating splash image.."
+#	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${UBOOT_BUILD_DIR}/umsplash.bmp"
+#	gzip -9 -f "${UBOOT_BUILD_DIR}/umsplash.bmp"
     return
 }
 
-build_u-boot_env()
+generate_uboot_env_files()
 {
     echo "Building environment for '${UBOOT_ENV_FILE}'"
     filename="$(basename "${UBOOT_ENV_FILE}" ".txt")"
@@ -128,40 +143,101 @@ build_u-boot_env()
     chmod a+r "${BUILD_DIR}/${filename}.bin"
 }
 
-# Build the required U-Boot binaries/images.
-# param: variant: can be either sd or spi.
-build_u-boot()
+build_uboot()
 {
-    variant="${1}"
-    config="${BUILDCONFIG}_${variant}"
-    uconfig="${CWD}/configs/${config}_defconfig"
-    build_dir="${BUILD_DIR}/${config}"
+    echo "Building U-Boot.."
+	cd "${UBOOT_DIR}"
 
-	# Prepare the build environment
-	mkdir -p "${build_dir}"
-	cd "${UBOOT_SRC}"
-
-	# Build the u-boot image files
-	ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}" all
-
-    cd "${CWD}"
-}
-
-if [ ${#} -gt 0 ]; then
-	cd "${UBOOT_SRC}"
     for variant in ${SUPPORTED_VARIANTS}; do
         config="${BUILDCONFIG}_${variant}"
-        uconfig="${CWD}/configs/${config}_defconfig"
+        uconfig="${SRC_DIR}/configs/${config}_defconfig"
         build_dir="${BUILD_DIR}/${config}"
-        ARCH=arm make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}" "${@}"
-	done
-	cd "${CWD}"
-else
-    for variant in ${SUPPORTED_VARIANTS}; do
-	    build_u-boot "${variant}"
-	done
 
-    build_u-boot_env
-	add_splash
-	package
+        if [ ! -d "${build_dir}" ]; then
+            mkdir -p "${build_dir}"
+        fi
+
+        if [ -n "${1-}" ]; then
+            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}" "${1}"
+        else
+            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}"
+        fi
+    done
+
+	cd "${SRC_DIR}"
+}
+
+create_build_dir()
+{
+    if [ ! -d "${BUILD_DIR}" ]; then
+        mkdir -p "${BUILD_DIR}"
+    fi
+}
+
+cleanup()
+{
+    if [ -z "${BUILD_DIR##*${BUILD_DIR_TEMPLATE}*}" ]; then
+        rm -rf "${BUILD_DIR:?}"
+    fi
+}
+
+usage()
+{
+    echo "Usage: ${0} [OPTIONS] [u-boot|splash|env|deb]"
+    echo "  For config modification use: ${0} menuconfig"
+    echo "  -c   Explicitly cleanup the build directory"
+    echo "  -h   Print this usage"
+    echo "NOTE: This script requires root permissions to run."
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Warning: this script requires root permissions."
+    echo "Run this script again with 'sudo ${0}'."
+    echo "See ${0} -h for more info."
+    exit 1
 fi
+
+if [ "${#}" -gt 1 ]; then
+    echo "Error, too many arguments."
+    usage
+    exit 1
+fi
+
+if [ "${#}" -eq 0 ]; then
+    cleanup
+    create_build_dir
+    build_uboot
+    generate_splash_image
+    generate_uboot_env_files
+    create_debian_package
+    exit 0
+fi
+
+create_build_dir
+
+case "${1-}" in
+    u-boot)
+        build_uboot
+        ;;
+    splash)
+        generate_splash_image
+        ;;
+    env)
+        generate_uboot_env_files
+        ;;
+    deb)
+        build_uboot
+        generate_splash_image
+        generate_uboot_env_files
+        ;;
+    menuconfig)
+        build_uboot menuconfig
+        ;;
+    *)
+        echo "Error, unknown build option given"
+        usage
+        exit 1
+        ;;
+esac
+
+exit 0

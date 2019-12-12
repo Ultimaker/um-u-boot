@@ -10,7 +10,10 @@ Session.vim
 tags
 
 # Ignore temporary build output
-_build_armhf
+_build*
 
 # Ignore the final build
 *.deb
+
+# IDE project meta data
+.idea/

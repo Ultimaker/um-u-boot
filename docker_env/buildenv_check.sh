@@ -10,7 +10,6 @@ COMMANDS=" \
 bunzip2 \
 convert \
 envsubst \
-fakeroot \
 gzip \
 make \
 mkenvimage \
