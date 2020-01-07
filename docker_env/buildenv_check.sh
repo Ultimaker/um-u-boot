@@ -7,6 +7,7 @@ TEST_DIR=$(mktemp -d)
 CROSS_COMPILE="${CROSS_COMPILE:-""}"
 
 COMMANDS=" \
+bc \
 bunzip2 \
 convert \
 envsubst \
