@@ -75,7 +75,7 @@ package()
     RELEASE_VERSION="${RELEASE_VERSION}" envsubst "\${RELEASE_VERSION}" < "${CWD}/scripts/debian_control" > "${deb_dir}/DEBIAN/control"
 
     for variant in ${SUPPORTED_VARIANTS}; do
-        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot.img" "${deb_dir}/boot/u-boot.img-${variant}"
+        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot-ivt.img" "${deb_dir}/boot/u-boot.img-${variant}"
         copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/SPL" "${deb_dir}/boot/spl.img-${variant}"
     done
 
