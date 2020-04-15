@@ -3,3 +3,8 @@ include:
   - project: ultimaker/embedded/prime-jedi
     ref: CES-republish-nightly
     file: /gitlab_ci_templates/jedi-gitlab-ci-template.yml
+
+release_cloudsmith-nightly:
+  only:
+    refs:
+      - branches
