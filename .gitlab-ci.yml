@@ -1,5 +1,5 @@
 
 include:
   - project: ultimaker/embedded/prime-jedi
-    ref: CES-59_nightly-buil-cloudsmith
+    ref: CES-republish-nightly
     file: /gitlab_ci_templates/jedi-gitlab-ci-template.yml
