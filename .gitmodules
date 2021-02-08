@@ -1,4 +1,4 @@
 
 [submodule "u-boot"]
 	path = u-boot
-	url = ../u-boot-denx-msc.git
+	url = ../u-boot-congatec-imx8.git
