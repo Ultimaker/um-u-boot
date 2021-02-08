@@ -31,11 +31,8 @@ check_compiler()
     echo "Verifying if the compiler is available and working"
 
     if [ "${CROSS_COMPILE}" = "" ]; then
-        if [ "$(command -v arm-none-eabi-gcc)" != "" ]; then
-            CROSS_COMPILE="arm-none-eabi-"
-        fi
-        if [ "$(command -v arm-linux-gnueabihf-gcc)" != "" ]; then
-            CROSS_COMPILE="arm-linux-gnueabihf-"
+        if [ "$(command -v aarch64-linux-gnu-gcc)" != "" ]; then
+            CROSS_COMPILE="aarch64-linux-gnu-"
         fi
         if [ "${CROSS_COMPILE}" = "" ]; then
             echo "No suiteable cross-compiler found."

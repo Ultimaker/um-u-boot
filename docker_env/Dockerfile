@@ -8,7 +8,7 @@ RUN apt-get update && \
         bzip2 \
         device-tree-compiler \
         gcc \
-        gcc-arm-linux-gnueabihf \
+        gcc-aarch64-linux-gnu \
         gettext \
         imagemagick \
         make \

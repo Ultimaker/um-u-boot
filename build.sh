@@ -2,6 +2,8 @@
 # shellcheck disable=SC2044
 # shellcheck disable=SC1117
 
+set +x
+
 # This scripts builds and packs the bootloaders for the msc-sm2-imx6 linux SOM.
 # It build two variations of the bootloader; one for the SPI-NOR flash and one
 # for running from SD card.
@@ -12,15 +14,12 @@
 # using arm-none-eabi-gcc, so we need to ensure it exists. Because printenv and
 # which can cause bash -e to exit, so run this before setting this up.
 if [ "${CROSS_COMPILE}" = "" ]; then
-    if [ "$(command -v arm-none-eabi-gcc)" != "" ]; then
-        CROSS_COMPILE="arm-none-eabi-"
-    fi
-    if [ "$(command -v arm-linux-gnueabihf-gcc)" != "" ]; then
-        CROSS_COMPILE="arm-linux-gnueabihf-"
+    if [ "$(command -v aarch64-linux-gnu-gcc)" != "" ]; then
+        CROSS_COMPILE="aarch64-linux-gnu-"
     fi
     if [ "${CROSS_COMPILE}" = "" ]; then
         echo "No suiteable cross-compiler found."
-        echo "One can be set explicitly via the environment variable CROSS_COMPILE='arm-linux-gnueabihf-' for example."
+        echo "One can be set explicitly via the environment variable CROSS_COMPILE='aarch64-linux-gnu-' for example."
         exit 1
     fi
 fi
@@ -33,8 +32,8 @@ fi
 
 set -eu
 
-ARCH="armhf"
-UM_ARCH="imx6dl" # Empty string, or sun7i for R1, or imx6dl for R2
+ARCH="arm64"
+UM_ARCH="imx8mm" # Empty string, or sun7i for R1, or imx6dl for R2, or imx8mm
 
 SRC_DIR="$(pwd)"
 UBOOT_DIR="${SRC_DIR}/u-boot/"
@@ -44,8 +43,9 @@ BUILD_DIR_TEMPLATE="_build"
 BUILD_DIR="${SRC_DIR}/${BUILD_DIR_TEMPLATE}"
 
 # Setup internal variables.
-BUILDCONFIG="msc_sm2_imx6"
-SUPPORTED_VARIANTS="sd spi"
+BUILDCONFIG="cgtsx8m"
+#SUPPORTED_VARIANTS="usd fspi"
+SUPPORTED_VARIANTS="fspi"
 
 # Debian package information
 PACKAGE_NAME="${PACKAGE_NAME:-um-u-boot}"
@@ -148,9 +148,12 @@ build_uboot()
     echo "Building U-Boot.."
 	cd "${UBOOT_DIR}"
 
+#    sleep 200000
+
     for variant in ${SUPPORTED_VARIANTS}; do
         config="${BUILDCONFIG}_${variant}"
         uconfig="${SRC_DIR}/configs/${config}_defconfig"
+#        cp ${uconfig} /build/u-boot/configs
         build_dir="${BUILD_DIR}/${config}"
 
         if [ ! -d "${build_dir}" ]; then
@@ -158,9 +161,15 @@ build_uboot()
         fi
 
         if [ -n "${1-}" ]; then
-            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}" "${1}"
+#            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make mrproper "${1}"
+            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "${config}_defconfig" "${1}"
+#            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}" "${1}"
+            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" all "${1}"
         else
-            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}"
+#            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make mrproper
+            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "${config}_defconfig"
+#            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}"
+            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" all
         fi
     done
 
