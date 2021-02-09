@@ -44,8 +44,7 @@ BUILD_DIR="${SRC_DIR}/${BUILD_DIR_TEMPLATE}"
 
 # Setup internal variables.
 BUILDCONFIG="cgtsx8m"
-#SUPPORTED_VARIANTS="usd fspi"
-SUPPORTED_VARIANTS="fspi"
+SUPPORTED_VARIANTS="usd fspi"
 
 # Debian package information
 PACKAGE_NAME="${PACKAGE_NAME:-um-u-boot}"
@@ -148,12 +147,10 @@ build_uboot()
     echo "Building U-Boot.."
 	cd "${UBOOT_DIR}"
 
-#    sleep 200000
-
     for variant in ${SUPPORTED_VARIANTS}; do
         config="${BUILDCONFIG}_${variant}"
         uconfig="${SRC_DIR}/configs/${config}_defconfig"
-#        cp ${uconfig} /build/u-boot/configs
+        cp ${uconfig} /build/u-boot/configs
         build_dir="${BUILD_DIR}/${config}"
 
         if [ ! -d "${build_dir}" ]; then
@@ -161,14 +158,10 @@ build_uboot()
         fi
 
         if [ -n "${1-}" ]; then
-#            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make mrproper "${1}"
             ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "${config}_defconfig" "${1}"
-#            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}" "${1}"
             ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" all "${1}"
         else
-#            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make mrproper
             ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "${config}_defconfig"
-#            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "KCONFIG_CONFIG=${uconfig}"
             ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" all
         fi
     done
