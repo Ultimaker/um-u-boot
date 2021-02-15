@@ -155,24 +155,17 @@ build_container()
         mkdir -p "${BUILD_DIR}"
     fi
 
-    cp ${BUILD_DIR}/cgtsx8m_usd/spl/u-boot-spl.bin ${SRC_DIR}/imx-mkimage/iMX8M
-    cp ${BUILD_DIR}/cgtsx8m_usd/u-boot-nodtb.bin ${SRC_DIR}/imx-mkimage/iMX8M
-    cp ${BUILD_DIR}/cgtsx8m_usd/arch/arm/dts/fsl-imx8mm-evk.dtb ${SRC_DIR}/imx-mkimage/iMX8M
+    cp ${BUILD_DIR}/cgtsx8m_usd/spl/u-boot-spl.bin ${SRC_DIR}/mkimage-imx8-family/iMX8M
+    cp ${BUILD_DIR}/cgtsx8m_usd/u-boot-nodtb.bin ${SRC_DIR}/mkimage-imx8-family/iMX8M
+    cp ${BUILD_DIR}/cgtsx8m_usd/arch/arm/dts/imx8mm-cgtsx8m.dtb ${SRC_DIR}/mkimage-imx8-family/iMX8M
 
-    
+    cp ${BUILD_DIR}/imx8mm/release/bl31.bin ${SRC_DIR}/mkimage-imx8-family/iMX8M
 
+    cp "${SRC_DIR}/firmware-imx-8.5/firmware/ddr/synopsys/lpddr4_pmu_train_"* ${SRC_DIR}/mkimage-imx8-family/iMX8M
 
-    echo ${BUILD_DIR}
-    ls -la ${BUILD_DIR}
-    ls -la ${BUILD_DIR}/imx8mm
-    ls -la ${BUILD_DIR}/imx8mm/release
-    cd ${​BUILD_DIR}/imx8mm/release/
-    cp bl31.bin ${SRC_DIR}/imx-mkimage/iMX8M
-    #cp ${​BUILD_DIR}​/imx8mm/release/bl31.bin ${SRC_DIR}/imx-mkimage/iMX8M
-
-    #cp "${SRC_DIR}/firmware-imx-8.5/firmware/ddr/synopsys/lpddr4_pmu_train_"* iMX8M/
-
-    #make SOC=iMX8M flash_evk
+    cd ${SRC_DIR}/mkimage-imx8-family
+    make SOC=iMX8MM flash_sx8m
+    cd ${SRC_DIR}
 
 
 }
