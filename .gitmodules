@@ -10,4 +10,5 @@
 	branch = imx_4.19.35_1.1.0 origin/imx_4.19.35_1.1.0
 [submodule "mkimage-imx8-family"]
 	path = mkimage-imx8-family
-	url = ./mkimage-imx8-family
+	url = ../mkimage-imx8-family.git
+	branch = cgtimx8mm__imx_4.14.98_2.0.0_ga
