@@ -149,6 +149,34 @@ build_imx_atf()
     cd "${SRC_DIR}"
 }
 
+build_container()
+{
+    if [ ! -d "${BUILD_DIR}" ]; then
+        mkdir -p "${BUILD_DIR}"
+    fi
+
+    cp ${BUILD_DIR}/cgtsx8m_usd/spl/u-boot-spl.bin ${SRC_DIR}/imx-mkimage/iMX8M
+    cp ${BUILD_DIR}/cgtsx8m_usd/u-boot-nodtb.bin ${SRC_DIR}/imx-mkimage/iMX8M
+    cp ${BUILD_DIR}/cgtsx8m_usd/arch/arm/dts/fsl-imx8mm-evk.dtb ${SRC_DIR}/imx-mkimage/iMX8M
+
+    
+
+
+    echo ${BUILD_DIR}
+    ls -la ${BUILD_DIR}
+    ls -la ${BUILD_DIR}/imx8mm
+    ls -la ${BUILD_DIR}/imx8mm/release
+    cd ${​BUILD_DIR}/imx8mm/release/
+    cp bl31.bin ${SRC_DIR}/imx-mkimage/iMX8M
+    #cp ${​BUILD_DIR}​/imx8mm/release/bl31.bin ${SRC_DIR}/imx-mkimage/iMX8M
+
+    #cp "${SRC_DIR}/firmware-imx-8.5/firmware/ddr/synopsys/lpddr4_pmu_train_"* iMX8M/
+
+    #make SOC=iMX8M flash_evk
+
+
+}
+
 generate_uboot_env_files()
 {
     echo "Building environment for '${UBOOT_ENV_FILE}'"
@@ -238,6 +266,11 @@ case "${1-}" in
         ;;
     u-boot)
         build_uboot
+        ;;
+    container)
+        build_uboot
+        build_imx_atf
+        build_container
         ;;
     splash)
         generate_splash_image
