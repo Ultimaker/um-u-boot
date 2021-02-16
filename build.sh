@@ -165,6 +165,7 @@ build_container()
 
         cd "${SRC_DIR}/mkimage-imx8-family"
         make SOC=iMX8MM flash_sx8m
+        make SOC=iMX8MM print_fit_hab_sx8m
         cp iMX8M/flash.bin "${BUILD_DIR}/flash_${variant}.bin"
         cd "${SRC_DIR}"
     done
