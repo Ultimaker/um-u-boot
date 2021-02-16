@@ -10,6 +10,7 @@ RUN apt-get update && \
         gcc \
         gcc-aarch64-linux-gnu \
         gettext \
+        git \
         imagemagick \
         make \
         ncurses-dev \
