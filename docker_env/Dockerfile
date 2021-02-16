@@ -12,11 +12,11 @@ RUN apt-get update && \
         gettext \
         git \
         imagemagick \
+        libz-dev \
         make \
         ncurses-dev \
         u-boot-tools \
-        git \
-        libz-dev \
+        xxd \
     && \
     apt-get clean && \
     rm -rf /var/cache/apt/*

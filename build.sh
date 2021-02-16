@@ -164,7 +164,19 @@ build_container()
         cp "${BUILD_DIR}/cgtsx8m_${variant}/arch/arm/dts/imx8mm-cgtsx8m.dtb" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
 
         cd "${SRC_DIR}/mkimage-imx8-family"
-        make SOC=iMX8MM flash_sx8m
+
+        if [ "${varian}" = "usd" ]; then
+            if ! make SOC=iMX8MM flash_sx8m; then
+                echo "Error, something went wrong with mkimage for '${variant}'."
+                exit 1
+            fi
+        else
+            if ! make SOC=iMX8MM flash_sx8m_flexspi; then
+                echo "Error, something went wrong with mkimage for '${variant}'."
+                exit 1
+            fi
+        fi
+
         make SOC=iMX8MM print_fit_hab_sx8m
         cp iMX8M/flash.bin "${BUILD_DIR}/flash_${variant}.bin"
         cd "${SRC_DIR}"
