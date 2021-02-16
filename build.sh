@@ -4,13 +4,12 @@
 
 set +x
 
-# This scripts builds and packs the bootloaders for the msc-sm2-imx6 linux SOM.
-# It build two variations of the bootloader; one for the SPI-NOR flash and one
+# This scripts builds and packs the bootloaders for the Congatec iMX8 linux SOM.
+# It build two variations of the bootloader container; one for the SPI-NOR flash and one
 # for running from SD card.
-# This U-Boot variant has a separate SPL and does not have a separate environment.
 
 
-# Check for a valid cross compiler. When unset, the kernel tries to build itself
+# Check for a valid cross compiler. When unset, it will try to build itself
 # using arm-none-eabi-gcc, so we need to ensure it exists. Because printenv and
 # which can cause bash -e to exit, so run this before setting this up.
 if [ "${CROSS_COMPILE}" = "" ]; then
@@ -32,8 +31,9 @@ fi
 
 set -eu
 
+
 ARCH="arm64"
-UM_ARCH="imx8mm" # Empty string, or sun7i for R1, or imx6dl for R2, or imx8mm
+UM_ARCH="imx8mm"
 
 SRC_DIR="$(pwd)"
 UBOOT_DIR="${SRC_DIR}/u-boot/"
@@ -55,7 +55,6 @@ RELEASE_VERSION="${RELEASE_VERSION:-999.999.999}"
 #               Stop the script if it fails.
 # $1 : src file
 # $2 : target file
-#
 copy_file()
 {
     src_file="${1}"
@@ -106,41 +105,65 @@ build_imx_atf()
 
 build_container()
 {
+    echo "Building bootcontainers .."
+    
     if [ ! -d "${BUILD_DIR}" ]; then
         mkdir -p "${BUILD_DIR}"
     fi
 
-    cp "${BUILD_DIR}/imx8mm/release/bl31.bin" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
-    cp "${SRC_DIR}/firmware-imx-8.5/firmware/ddr/synopsys/lpddr4_pmu_train_"* "${SRC_DIR}/mkimage-imx8-family/iMX8M"
-
+    mkimage_target_path="${SRC_DIR}/mkimage-imx8-family/iMX8M"
+    bl3_1_artefact="bl31.bin"
+    ddr_trainer_artefacts="lpddr4_pmu_train_1d_dmem.bin lpddr4_pmu_train_1d_imem.bin lpddr4_pmu_train_2d_dmem.bin lpddr4_pmu_train_2d_imem.bin"
+    
+    cp "${BUILD_DIR}/imx8mm/release/${bl3_1_artefact}" "${mkimage_target_path}"
+    
+    for file in ${ddr_trainer_artefacts}; do
+        cp "${SRC_DIR}/firmware-imx-8.5/firmware/ddr/synopsys/${file}" "${mkimage_target_path}"
+    done
+    
     for variant in ${SUPPORTED_VARIANTS}; do
-        cp "${BUILD_DIR}/cgtsx8m_${variant}/spl/u-boot-spl.bin" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
-        cp "${BUILD_DIR}/cgtsx8m_${variant}/u-boot-nodtb.bin" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
-        cp "${BUILD_DIR}/cgtsx8m_${variant}/arch/arm/dts/imx8mm-cgtsx8m.dtb" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/spl/u-boot-spl.bin" "${mkimage_target_path}"
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/u-boot-nodtb.bin" "${mkimage_target_path}"
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/arch/arm/dts/imx8mm-cgtsx8m.dtb" "${mkimage_target_path}"
 
         cd "${SRC_DIR}/mkimage-imx8-family"
 
         if [ "${variant}" = "usd" ]; then
             if ! make SOC=iMX8MM flash_sx8m; then
-                echo "Error, something went wrong with mkimage for '${variant}'."
+                echo "Error, running mkimage make 'flash_sx8m' for '${variant}'."
                 exit 1
             fi
         else
             if ! make SOC=iMX8MM flash_sx8m_flexspi; then
-                echo "Error, something went wrong with mkimage for '${variant}'."
+                echo "Error, running mkimage make 'flash_sx8m_flexspi' for '${variant}'."
                 exit 1
             fi
         fi
 
-        make SOC=iMX8MM print_fit_hab_sx8m
-        mv iMX8M/flash.bin "${BUILD_DIR}/flash_${variant}.bin"
+        if ! make SOC=iMX8MM print_fit_hab_sx8m; then
+           echo "Warning,  for '${variant}'" 
+        fi
+        
+        mv "${mkimage_target_path}/flash.bin" "${BUILD_DIR}/flash_${variant}.bin"
+        
+        rm "${mkimage_target_path}/u-boot-spl.bin"
+        rm "${mkimage_target_path}/u-boot-nodtb.bin"
+        rm "${mkimage_target_path}/imx8mm-cgtsx8m.dtb"
+        
         cd "${SRC_DIR}"
     done
+    
+    for file in ${ddr_trainer_artefacts}; do
+        rm "${mkimage_target_path}/${file}"
+    done
+    
+    rm "${mkimage_target_path}/${bl3_1_artefact}"
 }
 
 build_uboot()
 {
     echo "Building U-Boot.."
+    
 	cd "${UBOOT_DIR}"
 
     for variant in ${SUPPORTED_VARIANTS}; do
@@ -155,7 +178,7 @@ build_uboot()
 
         if [ -n "${1-}" ]; then
             ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "${config}_defconfig" "${1}"
-            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" all "${1}"
+            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" all
         else
             ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "${config}_defconfig"
             ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" all
@@ -226,6 +249,8 @@ case "${1-}" in
         build_container
         ;;
     deb)
+        build_uboot
+        build_imx_atf
         build_container
         create_debian_package
         ;;
