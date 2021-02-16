@@ -15,6 +15,7 @@ RUN apt-get update && \
         make \
         ncurses-dev \
         u-boot-tools \
+        git \
         libz-dev \
     && \
     apt-get clean && \
