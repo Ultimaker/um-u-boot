@@ -187,7 +187,7 @@ build_uboot()
     for variant in ${SUPPORTED_VARIANTS}; do
         config="${BUILDCONFIG}_${variant}"
         uconfig="${SRC_DIR}/configs/${config}_defconfig"
-        cp ${uconfig} /build/u-boot/configs
+        cp "${uconfig}" /build/u-boot/configs
         build_dir="${BUILD_DIR}/${config}"
 
         if [ ! -d "${build_dir}" ]; then
