@@ -155,19 +155,19 @@ build_container()
         mkdir -p "${BUILD_DIR}"
     fi
 
-    cp ${BUILD_DIR}/cgtsx8m_usd/spl/u-boot-spl.bin ${SRC_DIR}/mkimage-imx8-family/iMX8M
-    cp ${BUILD_DIR}/cgtsx8m_usd/u-boot-nodtb.bin ${SRC_DIR}/mkimage-imx8-family/iMX8M
-    cp ${BUILD_DIR}/cgtsx8m_usd/arch/arm/dts/imx8mm-cgtsx8m.dtb ${SRC_DIR}/mkimage-imx8-family/iMX8M
+    cp "${BUILD_DIR}/imx8mm/release/bl31.bin" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
+    cp "${SRC_DIR}/firmware-imx-8.5/firmware/ddr/synopsys/lpddr4_pmu_train_"* "${SRC_DIR}/mkimage-imx8-family/iMX8M"
 
-    cp ${BUILD_DIR}/imx8mm/release/bl31.bin ${SRC_DIR}/mkimage-imx8-family/iMX8M
+    for variant in ${SUPPORTED_VARIANTS}; do
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/spl/u-boot-spl.bin" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/u-boot-nodtb.bin" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/arch/arm/dts/imx8mm-cgtsx8m.dtb" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
 
-    cp "${SRC_DIR}/firmware-imx-8.5/firmware/ddr/synopsys/lpddr4_pmu_train_"* ${SRC_DIR}/mkimage-imx8-family/iMX8M
-
-    cd ${SRC_DIR}/mkimage-imx8-family
-    make SOC=iMX8MM flash_sx8m
-    cd ${SRC_DIR}
-
-
+        cd "${SRC_DIR}/mkimage-imx8-family"
+        make SOC=iMX8MM flash_sx8m
+        cp iMX8M/flash.bin "${BUILD_DIR}/flash_${variant}.bin"
+        cd "${SRC_DIR}"
+    done
 }
 
 generate_uboot_env_files()
