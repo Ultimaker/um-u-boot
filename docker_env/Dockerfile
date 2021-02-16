@@ -14,6 +14,7 @@ RUN apt-get update && \
         make \
         ncurses-dev \
         u-boot-tools \
+        libz-dev \
     && \
     apt-get clean && \
     rm -rf /var/cache/apt/*

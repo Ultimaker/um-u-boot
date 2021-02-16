@@ -38,6 +38,7 @@ UM_ARCH="imx8mm" # Empty string, or sun7i for R1, or imx6dl for R2, or imx8mm
 SRC_DIR="$(pwd)"
 UBOOT_DIR="${SRC_DIR}/u-boot/"
 UBOOT_ENV_FILE="${SRC_DIR}/env/u-boot_env.txt"
+ATF_DIR="${SRC_DIR}/imx-atf/"
 
 BUILD_DIR_TEMPLATE="_build"
 BUILD_DIR="${SRC_DIR}/${BUILD_DIR_TEMPLATE}"
@@ -134,6 +135,41 @@ generate_splash_image()
     return
 }
 
+build_imx_atf()
+{
+    echo "Building ARM Trusted Firmware (atf) .."
+    cd "${ATF_DIR}"
+
+    if [ ! -d "${BUILD_DIR}" ]; then
+        mkdir -p "${BUILD_DIR}"
+    fi
+
+    ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make BUILD_BASE="${BUILD_DIR}" PLAT=imx8mm bl31
+
+    cd "${SRC_DIR}"
+}
+
+build_container()
+{
+    if [ ! -d "${BUILD_DIR}" ]; then
+        mkdir -p "${BUILD_DIR}"
+    fi
+
+    cp "${BUILD_DIR}/imx8mm/release/bl31.bin" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
+    cp "${SRC_DIR}/firmware-imx-8.5/firmware/ddr/synopsys/lpddr4_pmu_train_"* "${SRC_DIR}/mkimage-imx8-family/iMX8M"
+
+    for variant in ${SUPPORTED_VARIANTS}; do
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/spl/u-boot-spl.bin" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/u-boot-nodtb.bin" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/arch/arm/dts/imx8mm-cgtsx8m.dtb" "${SRC_DIR}/mkimage-imx8-family/iMX8M"
+
+        cd "${SRC_DIR}/mkimage-imx8-family"
+        make SOC=iMX8MM flash_sx8m
+        cp iMX8M/flash.bin "${BUILD_DIR}/flash_${variant}.bin"
+        cd "${SRC_DIR}"
+    done
+}
+
 generate_uboot_env_files()
 {
     echo "Building environment for '${UBOOT_ENV_FILE}'"
@@ -218,8 +254,16 @@ fi
 create_build_dir
 
 case "${1-}" in
+    imx-atf)
+        build_imx_atf
+        ;;
     u-boot)
         build_uboot
+        ;;
+    container)
+        build_uboot
+        build_imx_atf
+        build_container
         ;;
     splash)
         generate_splash_image
