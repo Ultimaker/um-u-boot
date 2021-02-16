@@ -37,7 +37,6 @@ UM_ARCH="imx8mm" # Empty string, or sun7i for R1, or imx6dl for R2, or imx8mm
 
 SRC_DIR="$(pwd)"
 UBOOT_DIR="${SRC_DIR}/u-boot/"
-UBOOT_ENV_FILE="${SRC_DIR}/env/u-boot_env.txt"
 ATF_DIR="${SRC_DIR}/imx-atf/"
 
 BUILD_DIR_TEMPLATE="_build"
@@ -50,11 +49,6 @@ SUPPORTED_VARIANTS="usd fspi"
 # Debian package information
 PACKAGE_NAME="${PACKAGE_NAME:-um-u-boot}"
 RELEASE_VERSION="${RELEASE_VERSION:-999.999.999}"
-
-UBOOT_SPLASHFILE="umsplash-800x320.bmp"
-UMSPLASH="${SRC_DIR}/splash/SplashUM.bmp.bz2"
-SPLASH_SERVICE="${SRC_DIR}/scripts/uboot-splashimage.service"
-SPLASH_SCRIPT="${SRC_DIR}/scripts/uboot-set-splashimage.sh"
 
 ##
 # copy_file() - Copy a file from target to destination file and
@@ -87,52 +81,13 @@ create_debian_package()
 	mkdir -p "${DEB_DIR}/boot"
 
     for variant in ${SUPPORTED_VARIANTS}; do
-        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot.img" "${DEB_DIR}/boot/u-boot.img-${variant}"
-        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/SPL" "${DEB_DIR}/boot/spl.img-${variant}"
+        copy_file "${BUILD_DIR}/flash_${variant}.bin" "${DEB_DIR}/boot/flash_${variant}.bin"
     done
-
-    env_file="$(basename "${UBOOT_ENV_FILE}" ".txt")"
-    copy_file "${BUILD_DIR}/${env_file}.bin" "${DEB_DIR}/boot/${env_file}.bin"
-
-    # Set the default splash image to UM logo
-    if ! bunzip2 -k -c  "${UMSPLASH}" > "${DEB_DIR}/boot/${UBOOT_SPLASHFILE}"; then
-        echo "Failed to decompress splash file. Aborting..."
-        exit 1
-    fi
-
-    # Copy SplashImage script
-    mkdir -p "${DEB_DIR}/usr/share/uboot-splashimage/"
-    copy_file "${SPLASH_SCRIPT}" "${DEB_DIR}/usr/share/uboot-splashimage/"
-    chmod 755 "${DEB_DIR}/usr/share/uboot-splashimage/$(basename "${SPLASH_SCRIPT}")"     # Make sure the file is executable.
-
-    # Copy Image files to script directory
-    for file in "$(dirname "${UMSPLASH}")"/*.bmp.bz2; do
-        copy_file "${file}" "${DEB_DIR}/usr/share/uboot-splashimage/"
-    done;
-
-    # Copy SplashImage SYSTEMD Service
-    mkdir -p "${DEB_DIR}/lib/systemd/system/"
-    copy_file "${SPLASH_SERVICE}" "${DEB_DIR}/lib/systemd/system/"
-
-    # Copy preinst debian script file
-    copy_file "${SRC_DIR}/scripts/preinst" "${DEB_DIR}/DEBIAN/"
-
-    # Copy postinst debian script file
-    copy_file "${SRC_DIR}/scripts/postinst" "${DEB_DIR}/DEBIAN/"
 
     DEB_PACKAGE="${PACKAGE_NAME}_${RELEASE_VERSION}-${UM_ARCH}_${ARCH}.deb"
 
     dpkg-deb --build --root-owner-group "${DEB_DIR}" "${BUILD_DIR}/${DEB_PACKAGE}"
     dpkg-deb -c "${BUILD_DIR}/${DEB_PACKAGE}"
-}
-
-generate_splash_image()
-{
-	# Disabled live conversion, because it does not work in docker, reason is unclear. But it is not worth the effort right now.
-#    echo "Generating splash image.."
-#	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${UBOOT_BUILD_DIR}/umsplash.bmp"
-#	gzip -9 -f "${UBOOT_BUILD_DIR}/umsplash.bmp"
-    return
 }
 
 build_imx_atf()
@@ -165,7 +120,7 @@ build_container()
 
         cd "${SRC_DIR}/mkimage-imx8-family"
 
-        if [ "${varian}" = "usd" ]; then
+        if [ "${variant}" = "usd" ]; then
             if ! make SOC=iMX8MM flash_sx8m; then
                 echo "Error, something went wrong with mkimage for '${variant}'."
                 exit 1
@@ -178,17 +133,9 @@ build_container()
         fi
 
         make SOC=iMX8MM print_fit_hab_sx8m
-        cp iMX8M/flash.bin "${BUILD_DIR}/flash_${variant}.bin"
+        mv iMX8M/flash.bin "${BUILD_DIR}/flash_${variant}.bin"
         cd "${SRC_DIR}"
     done
-}
-
-generate_uboot_env_files()
-{
-    echo "Building environment for '${UBOOT_ENV_FILE}'"
-    filename="$(basename "${UBOOT_ENV_FILE}" ".txt")"
-    mkenvimage -s 131072 -p 0x00 -o "${BUILD_DIR}/${filename}.bin" "${UBOOT_ENV_FILE}"
-    chmod a+r "${BUILD_DIR}/${filename}.bin"
 }
 
 build_uboot()
@@ -234,7 +181,7 @@ cleanup()
 
 usage()
 {
-    echo "Usage: ${0} [OPTIONS] [u-boot|splash|env|deb]"
+    echo "Usage: ${0} [OPTIONS] [u-boot|imx-atf|container|deb]"
     echo "  For config modification use: ${0} menuconfig"
     echo "  -c   Explicitly cleanup the build directory"
     echo "  -h   Print this usage"
@@ -258,8 +205,8 @@ if [ "${#}" -eq 0 ]; then
     cleanup
     create_build_dir
     build_uboot
-    generate_splash_image
-    generate_uboot_env_files
+    build_imx_atf
+    build_container
     create_debian_package
     exit 0
 fi
@@ -278,16 +225,9 @@ case "${1-}" in
         build_imx_atf
         build_container
         ;;
-    splash)
-        generate_splash_image
-        ;;
-    env)
-        generate_uboot_env_files
-        ;;
     deb)
-        build_uboot
-        generate_splash_image
-        generate_uboot_env_files
+        build_container
+        create_debian_package
         ;;
     menuconfig)
         build_uboot menuconfig
