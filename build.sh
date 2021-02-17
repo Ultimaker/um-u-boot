@@ -4,13 +4,12 @@
 
 set +x
 
-# This scripts builds and packs the bootloaders for the msc-sm2-imx6 linux SOM.
-# It build two variations of the bootloader; one for the SPI-NOR flash and one
+# This scripts builds and packs the bootloaders for the Congatec iMX8 linux SOM.
+# It build two variations of the bootloader container; one for the SPI-NOR flash and one
 # for running from SD card.
-# This U-Boot variant has a separate SPL and does not have a separate environment.
 
 
-# Check for a valid cross compiler. When unset, the kernel tries to build itself
+# Check for a valid cross compiler. When unset, it will try to build itself
 # using arm-none-eabi-gcc, so we need to ensure it exists. Because printenv and
 # which can cause bash -e to exit, so run this before setting this up.
 if [ "${CROSS_COMPILE}" = "" ]; then
@@ -32,12 +31,13 @@ fi
 
 set -eu
 
+
 ARCH="arm64"
-UM_ARCH="imx8mm" # Empty string, or sun7i for R1, or imx6dl for R2, or imx8mm
+UM_ARCH="imx8mm"
 
 SRC_DIR="$(pwd)"
 UBOOT_DIR="${SRC_DIR}/u-boot/"
-UBOOT_ENV_FILE="${SRC_DIR}/env/u-boot_env.txt"
+ATF_DIR="${SRC_DIR}/imx-atf/"
 
 BUILD_DIR_TEMPLATE="_build"
 BUILD_DIR="${SRC_DIR}/${BUILD_DIR_TEMPLATE}"
@@ -50,17 +50,11 @@ SUPPORTED_VARIANTS="usd fspi"
 PACKAGE_NAME="${PACKAGE_NAME:-um-u-boot}"
 RELEASE_VERSION="${RELEASE_VERSION:-999.999.999}"
 
-UBOOT_SPLASHFILE="umsplash-800x320.bmp"
-UMSPLASH="${SRC_DIR}/splash/SplashUM.bmp.bz2"
-SPLASH_SERVICE="${SRC_DIR}/scripts/uboot-splashimage.service"
-SPLASH_SCRIPT="${SRC_DIR}/scripts/uboot-set-splashimage.sh"
-
 ##
 # copy_file() - Copy a file from target to destination file and
 #               Stop the script if it fails.
 # $1 : src file
 # $2 : target file
-#
 copy_file()
 {
     src_file="${1}"
@@ -86,38 +80,8 @@ create_debian_package()
 	mkdir -p "${DEB_DIR}/boot"
 
     for variant in ${SUPPORTED_VARIANTS}; do
-        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/u-boot.img" "${DEB_DIR}/boot/u-boot.img-${variant}"
-        copy_file "${BUILD_DIR}/${BUILDCONFIG}_${variant}/SPL" "${DEB_DIR}/boot/spl.img-${variant}"
+        copy_file "${BUILD_DIR}/flash_${variant}.bin" "${DEB_DIR}/boot/flash_${variant}.bin"
     done
-
-    env_file="$(basename "${UBOOT_ENV_FILE}" ".txt")"
-    copy_file "${BUILD_DIR}/${env_file}.bin" "${DEB_DIR}/boot/${env_file}.bin"
-
-    # Set the default splash image to UM logo
-    if ! bunzip2 -k -c  "${UMSPLASH}" > "${DEB_DIR}/boot/${UBOOT_SPLASHFILE}"; then
-        echo "Failed to decompress splash file. Aborting..."
-        exit 1
-    fi
-
-    # Copy SplashImage script
-    mkdir -p "${DEB_DIR}/usr/share/uboot-splashimage/"
-    copy_file "${SPLASH_SCRIPT}" "${DEB_DIR}/usr/share/uboot-splashimage/"
-    chmod 755 "${DEB_DIR}/usr/share/uboot-splashimage/$(basename "${SPLASH_SCRIPT}")"     # Make sure the file is executable.
-
-    # Copy Image files to script directory
-    for file in "$(dirname "${UMSPLASH}")"/*.bmp.bz2; do
-        copy_file "${file}" "${DEB_DIR}/usr/share/uboot-splashimage/"
-    done;
-
-    # Copy SplashImage SYSTEMD Service
-    mkdir -p "${DEB_DIR}/lib/systemd/system/"
-    copy_file "${SPLASH_SERVICE}" "${DEB_DIR}/lib/systemd/system/"
-
-    # Copy preinst debian script file
-    copy_file "${SRC_DIR}/scripts/preinst" "${DEB_DIR}/DEBIAN/"
-
-    # Copy postinst debian script file
-    copy_file "${SRC_DIR}/scripts/postinst" "${DEB_DIR}/DEBIAN/"
 
     DEB_PACKAGE="${PACKAGE_NAME}_${RELEASE_VERSION}-${UM_ARCH}_${ARCH}.deb"
 
@@ -125,32 +89,87 @@ create_debian_package()
     dpkg-deb -c "${BUILD_DIR}/${DEB_PACKAGE}"
 }
 
-generate_splash_image()
+build_imx_atf()
 {
-	# Disabled live conversion, because it does not work in docker, reason is unclear. But it is not worth the effort right now.
-#    echo "Generating splash image.."
-#	convert -density 600 "splash/umsplash.*" -resize 800x320 -gravity center -extent 800x320 -flatten BMP3:"${UBOOT_BUILD_DIR}/umsplash.bmp"
-#	gzip -9 -f "${UBOOT_BUILD_DIR}/umsplash.bmp"
-    return
+    echo "Building ARM Trusted Firmware (atf) .."
+    cd "${ATF_DIR}"
+
+    if [ ! -d "${BUILD_DIR}" ]; then
+        mkdir -p "${BUILD_DIR}"
+    fi
+
+    ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make BUILD_BASE="${BUILD_DIR}" PLAT=imx8mm bl31
+
+    cd "${SRC_DIR}"
 }
 
-generate_uboot_env_files()
+build_container()
 {
-    echo "Building environment for '${UBOOT_ENV_FILE}'"
-    filename="$(basename "${UBOOT_ENV_FILE}" ".txt")"
-    mkenvimage -s 131072 -p 0x00 -o "${BUILD_DIR}/${filename}.bin" "${UBOOT_ENV_FILE}"
-    chmod a+r "${BUILD_DIR}/${filename}.bin"
+    echo "Building bootcontainers .."
+    
+    if [ ! -d "${BUILD_DIR}" ]; then
+        mkdir -p "${BUILD_DIR}"
+    fi
+
+    mkimage_target_path="${SRC_DIR}/mkimage-imx8-family/iMX8M"
+    bl3_1_artefact="bl31.bin"
+    ddr_trainer_artefacts="lpddr4_pmu_train_1d_dmem.bin lpddr4_pmu_train_1d_imem.bin lpddr4_pmu_train_2d_dmem.bin lpddr4_pmu_train_2d_imem.bin"
+    
+    cp "${BUILD_DIR}/imx8mm/release/${bl3_1_artefact}" "${mkimage_target_path}"
+    
+    for file in ${ddr_trainer_artefacts}; do
+        cp "${SRC_DIR}/firmware-imx-8.5/firmware/ddr/synopsys/${file}" "${mkimage_target_path}"
+    done
+    
+    for variant in ${SUPPORTED_VARIANTS}; do
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/spl/u-boot-spl.bin" "${mkimage_target_path}"
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/u-boot-nodtb.bin" "${mkimage_target_path}"
+        cp "${BUILD_DIR}/cgtsx8m_${variant}/arch/arm/dts/imx8mm-cgtsx8m.dtb" "${mkimage_target_path}"
+
+        cd "${SRC_DIR}/mkimage-imx8-family"
+
+        if [ "${variant}" = "usd" ]; then
+            if ! make SOC=iMX8MM flash_sx8m; then
+                echo "Error, running mkimage make 'flash_sx8m' for '${variant}'."
+                exit 1
+            fi
+        else
+            if ! make SOC=iMX8MM flash_sx8m_flexspi; then
+                echo "Error, running mkimage make 'flash_sx8m_flexspi' for '${variant}'."
+                exit 1
+            fi
+        fi
+
+        if ! make SOC=iMX8MM print_fit_hab_sx8m; then
+           echo "Warning,  for '${variant}'" 
+        fi
+        
+        mv "${mkimage_target_path}/flash.bin" "${BUILD_DIR}/flash_${variant}.bin"
+        
+        rm "${mkimage_target_path}/u-boot-spl.bin"
+        rm "${mkimage_target_path}/u-boot-nodtb.bin"
+        rm "${mkimage_target_path}/imx8mm-cgtsx8m.dtb"
+        
+        cd "${SRC_DIR}"
+    done
+    
+    for file in ${ddr_trainer_artefacts}; do
+        rm "${mkimage_target_path}/${file}"
+    done
+    
+    rm "${mkimage_target_path}/${bl3_1_artefact}"
 }
 
 build_uboot()
 {
     echo "Building U-Boot.."
+    
 	cd "${UBOOT_DIR}"
 
     for variant in ${SUPPORTED_VARIANTS}; do
         config="${BUILDCONFIG}_${variant}"
         uconfig="${SRC_DIR}/configs/${config}_defconfig"
-        cp ${uconfig} /build/u-boot/configs
+        cp "${uconfig}" /build/u-boot/configs
         build_dir="${BUILD_DIR}/${config}"
 
         if [ ! -d "${build_dir}" ]; then
@@ -159,7 +178,7 @@ build_uboot()
 
         if [ -n "${1-}" ]; then
             ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "${config}_defconfig" "${1}"
-            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" all "${1}"
+            ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" all
         else
             ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" "${config}_defconfig"
             ARCH=arm CROSS_COMPILE="${CROSS_COMPILE}" make "O=${build_dir}" all
@@ -185,7 +204,7 @@ cleanup()
 
 usage()
 {
-    echo "Usage: ${0} [OPTIONS] [u-boot|splash|env|deb]"
+    echo "Usage: ${0} [OPTIONS] [u-boot|imx-atf|container|deb]"
     echo "  For config modification use: ${0} menuconfig"
     echo "  -c   Explicitly cleanup the build directory"
     echo "  -h   Print this usage"
@@ -209,8 +228,8 @@ if [ "${#}" -eq 0 ]; then
     cleanup
     create_build_dir
     build_uboot
-    generate_splash_image
-    generate_uboot_env_files
+    build_imx_atf
+    build_container
     create_debian_package
     exit 0
 fi
@@ -218,19 +237,22 @@ fi
 create_build_dir
 
 case "${1-}" in
+    imx-atf)
+        build_imx_atf
+        ;;
     u-boot)
         build_uboot
         ;;
-    splash)
-        generate_splash_image
-        ;;
-    env)
-        generate_uboot_env_files
+    container)
+        build_uboot
+        build_imx_atf
+        build_container
         ;;
     deb)
         build_uboot
-        generate_splash_image
-        generate_uboot_env_files
+        build_imx_atf
+        build_container
+        create_debian_package
         ;;
     menuconfig)
         build_uboot menuconfig

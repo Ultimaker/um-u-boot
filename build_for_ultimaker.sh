@@ -53,7 +53,7 @@ run_build()
         rm -rf .git/modules
         git submodule update --init --recursive
     }
-    run_in_docker "./build.sh" #"${@:-}"
+    run_in_docker "./build.sh" "${@}"
 }
 
 deliver_pkg()

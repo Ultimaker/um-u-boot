@@ -10,10 +10,13 @@ RUN apt-get update && \
         gcc \
         gcc-aarch64-linux-gnu \
         gettext \
+        git \
         imagemagick \
+        libz-dev \
         make \
         ncurses-dev \
         u-boot-tools \
+        xxd \
     && \
     apt-get clean && \
     rm -rf /var/cache/apt/*
