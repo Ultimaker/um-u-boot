@@ -1,4 +1,5 @@
 # Ultimaker u-boot for iMX-8 (used in Colorado)
+Copyright © Ultimaker 2017-2021
 
 This repository is used to build a bootloader for the Congatec iMX-8 System on a Module (SoM) that is used in the Colorado printer. We need a modified bootloader instead of the preflashed one on the SoM for two reasons:
 
