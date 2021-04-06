@@ -33,7 +33,7 @@ set -eu
 
 
 ARCH="arm64"
-UM_ARCH="imx8mm"
+UM_ARCH="imx8mm-SER3"
 
 SRC_DIR="$(pwd)"
 UBOOT_DIR="${SRC_DIR}/u-boot/"
@@ -169,7 +169,7 @@ build_uboot()
     for variant in ${SUPPORTED_VARIANTS}; do
         config="${BUILDCONFIG}_${variant}"
         uconfig="${SRC_DIR}/configs/${config}_defconfig"
-        cp "${uconfig}" /build/u-boot/configs
+        cp "${uconfig}" "${UBOOT_DIR}/configs"
         build_dir="${BUILD_DIR}/${config}"
 
         if [ ! -d "${build_dir}" ]; then
