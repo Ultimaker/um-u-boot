@@ -33,7 +33,7 @@ set -eu
 
 
 ARCH="arm64"
-UM_ARCH="imx8mm-SER3"
+UM_ARCH="imx8m-SER3"
 
 SRC_DIR="$(pwd)"
 UBOOT_DIR="${SRC_DIR}/u-boot/"
