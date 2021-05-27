@@ -83,6 +83,16 @@ create_debian_package()
         copy_file "${BUILD_DIR}/flash_${variant}.bin" "${DEB_DIR}/boot/flash_${variant}.bin"
     done
 
+    if ! cp "${BUILD_DIR}/boot.scr" "${DEB_DIR}/boot/boot.scr"; then
+        echo "Error, no bootscript files found."
+        exit 1
+    fi
+
+    if ! cp "${BUILD_DIR}/boot.cmd" "${DEB_DIR}/boot/boot.cmd"; then
+        echo "Error, no bootscript files found."
+        exit 1
+    fi
+
     DEB_PACKAGE="${PACKAGE_NAME}_${RELEASE_VERSION}-${UM_ARCH}_${ARCH}.deb"
 
     dpkg-deb --build --root-owner-group "${DEB_DIR}" "${BUILD_DIR}/${DEB_PACKAGE}"
@@ -107,10 +117,6 @@ build_container()
 {
     echo "Building bootcontainers .."
     
-    if [ ! -d "${BUILD_DIR}" ]; then
-        mkdir -p "${BUILD_DIR}"
-    fi
-
     mkimage_target_path="${SRC_DIR}/mkimage-imx8-family/iMX8M"
     bl3_1_artefact="bl31.bin"
     ddr_trainer_artefacts="lpddr4_pmu_train_1d_dmem.bin lpddr4_pmu_train_1d_imem.bin lpddr4_pmu_train_2d_dmem.bin lpddr4_pmu_train_2d_imem.bin"
@@ -188,6 +194,19 @@ build_uboot()
 	cd "${SRC_DIR}"
 }
 
+build_bootscript()
+{
+    # Create the boot-scripts for different firmware versions
+    cp scripts/boot.cmd "${BUILD_DIR}/boot.cmd"
+
+    # Convert the boot-scripts into proper U-Boot script images
+    for cmd_file in "${BUILD_DIR}/"*".cmd"; do
+        scr_file="$(basename "${cmd_file%.*}.scr")"
+        mkimage -A "${ARCH}" -O linux -T script -C none -a 0x43100000 -n "Boot script" -d "${cmd_file}" "${BUILD_DIR}/${scr_file}"
+    done
+    echo "Finished building boot scripts."
+}
+
 create_build_dir()
 {
     if [ ! -d "${BUILD_DIR}" ]; then
@@ -204,7 +223,7 @@ cleanup()
 
 usage()
 {
-    echo "Usage: ${0} [OPTIONS] [u-boot|imx-atf|container|deb]"
+    echo "Usage: ${0} [OPTIONS] [u-boot|imx-atf|container|bootscript|deb]"
     echo "  For config modification use: ${0} menuconfig"
     echo "  -c   Explicitly cleanup the build directory"
     echo "  -h   Print this usage"
@@ -230,6 +249,7 @@ if [ "${#}" -eq 0 ]; then
     build_uboot
     build_imx_atf
     build_container
+    build_bootscript
     create_debian_package
     exit 0
 fi
@@ -237,11 +257,8 @@ fi
 create_build_dir
 
 case "${1-}" in
-    imx-atf)
-        build_imx_atf
-        ;;
-    u-boot)
-        build_uboot
+    bootscript)
+        build_bootscript
         ;;
     container)
         build_uboot
@@ -252,11 +269,18 @@ case "${1-}" in
         build_uboot
         build_imx_atf
         build_container
+        build_bootscript
         create_debian_package
         ;;
+    imx-atf)
+        build_imx_atf
+        ;;        
     menuconfig)
         build_uboot menuconfig
         ;;
+    u-boot)
+        build_uboot
+        ;;        
     *)
         echo "Error, unknown build option given"
         usage
