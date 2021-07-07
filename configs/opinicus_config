@@ -386,6 +386,7 @@ CONFIG_CMD_PING=y
 #
 # Misc commands
 #
+CONFIG_CMD_BLOCK_CACHE=y
 CONFIG_CMD_BMP=y
 # CONFIG_CMD_CACHE is not set
 # CONFIG_CMD_TIME is not set
@@ -452,7 +453,7 @@ CONFIG_OF_TRANSLATE=y
 # CONFIG_ADC_SANDBOX is not set
 # CONFIG_BLK is not set
 CONFIG_DISK=y
-# CONFIG_BLOCK_CACHE is not set
+CONFIG_BLOCK_CACHE=y
 
 #
 # Clock
